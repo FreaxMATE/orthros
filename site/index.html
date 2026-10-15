@@ -180,23 +180,25 @@
       <section class="install" id="install">
         <div class="narrow">
           <h2>Install</h2>
+          <p>Download Orthros from the <a href="https://github.com/FreaxMATE/orthros/releases/latest">latest release</a> and open it. It works on its own: no account, no server.</p>
 
           <h3>macOS</h3>
-          <p>Download the <code>.dmg</code> from the <a href="https://github.com/FreaxMATE/orthros/releases/latest">latest release</a> (<code>aarch64</code> for Apple silicon, <code>x64</code> for Intel). The app isn't signed, so once after copying it to Applications:</p>
+          <p>The <code>.dmg</code> (<code>aarch64</code> for Apple silicon, <code>x64</code> for Intel). The app isn't signed, so once after moving it to Applications:</p>
           <pre><code>xattr -dr com.apple.quarantine /Applications/Orthros.app</code></pre>
 
           <h3>Linux</h3>
-          <p>The <code>.AppImage</code> or <code>.deb</code> from the <a href="https://github.com/FreaxMATE/orthros/releases/latest">latest release</a>, or with Nix:</p>
+          <p><code>.AppImage</code> or <code>.flatpak</code> for any distribution, <code>.deb</code> for Debian and Ubuntu, <code>.rpm</code> for Fedora and openSUSE. With Nix:</p>
           <pre><code>nix run github:FreaxMATE/orthros</code></pre>
 
-          <h3>Sync server</h3>
-          <p>On NixOS, add the flake and enable the module; then put HTTPS in front of it, for example with <code>tailscale serve</code>.</p>
-          <pre><code>imports = [ inputs.orthros.nixosModules.server ];
-services.orthros-server = {
-  enable = true;
-  tokenFile = "/var/lib/secrets/orthros-token";
-};</code></pre>
-          <p style="margin-top: 14px">More in the <a href="https://github.com/FreaxMATE/orthros#readme">README</a>.</p>
+          <h3>Sync, if you want it</h3>
+          <p>Start the server on a machine that's always on. It prints a token:</p>
+          <pre><code>docker run -d --name orthros --restart unless-stopped \
+  -p 127.0.0.1:8787:8787 -v orthros:/data ghcr.io/freaxmate/orthros-server</code></pre>
+          <p style="margin-top: 14px">or on any Linux with systemd:</p>
+          <pre><code>curl -fsSL https://freaxmate.github.io/orthros/install-server.sh | sh</code></pre>
+          <p style="margin-top: 14px">Make it reachable over HTTPS (for example <code>tailscale serve</code>), then on each device:</p>
+          <pre><code>orthros --connect https://your-server:8444 YOUR-TOKEN</code></pre>
+          <p style="margin-top: 14px">NixOS, Home Manager and the details: see the <a href="https://github.com/FreaxMATE/orthros#readme">README</a>.</p>
         </div>
       </section>
     </main>

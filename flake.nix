@@ -46,6 +46,7 @@
       });
 
     nixosModules.server = import ./nix/module.nix self;
+    homeManagerModules.default = import ./nix/hm-module.nix self;
 
     devShells = forAll (pkgs: {
       default = pkgs.mkShell {

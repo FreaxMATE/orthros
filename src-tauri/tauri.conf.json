@@ -19,6 +19,7 @@
     "active": true,
     "targets": [
       "deb",
+      "rpm",
       "appimage",
       "app",
       "dmg"

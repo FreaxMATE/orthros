@@ -1,10 +1,9 @@
 # NixOS module for the sync server.
 #
-#   services.orthros-server = {
-#     enable = true;
-#     tokenFile = "/var/lib/secrets/orthros-token";   # outside the Nix store
-#   };
+#   services.orthros-server.enable = true;
 #
+# On first start it generates a token in /var/lib/orthros/token (shown by
+# `sudo cat /var/lib/orthros/token`), unless you set tokenFile yourself.
 # It listens on 127.0.0.1 only: put HTTPS in front, e.g.
 #   tailscale serve --bg --https=8444 http://127.0.0.1:8787
 # The space lives in /var/lib/orthros (plain markdown files).
@@ -38,23 +37,35 @@ in
     };
 
     tokenFile = lib.mkOption {
-      type = lib.types.str;
+      type = lib.types.nullOr lib.types.str;
+      default = null;
       example = "/var/lib/secrets/orthros-token";
       description = ''
         File holding the sync token (at least 16 characters). Every device
-        must send it. Keep it out of the Nix store.
+        must send it. Keep it out of the Nix store. When null, a token is
+        generated on first start and kept in /var/lib/orthros/token.
       '';
+    };
+
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Open the port in the firewall (only useful with a non-loopback listenAddress).";
     };
   };
 
   config = lib.mkIf cfg.enable {
+    networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [ cfg.port ];
+
     systemd.services.orthros-server = {
       description = "orthros sync server";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
       serviceConfig = {
-        ExecStart = "${lib.getExe cfg.package} --data /var/lib/orthros --listen ${cfg.listenAddress}:${toString cfg.port} --token-file %d/token";
-        LoadCredential = "token:${cfg.tokenFile}";
+        ExecStart =
+          "${lib.getExe cfg.package} --data /var/lib/orthros --listen ${cfg.listenAddress}:${toString cfg.port}"
+          + lib.optionalString (cfg.tokenFile != null) " --token-file %d/token";
+        LoadCredential = lib.mkIf (cfg.tokenFile != null) "token:${cfg.tokenFile}";
         DynamicUser = true;
         StateDirectory = "orthros";
         StateDirectoryMode = "0700";

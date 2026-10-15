@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.freaxmate.orthros</id>
+  <name>Orthros</name>
+  <summary>A quiet daily todo journal</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <developer id="io.github.freaxmate">
+    <name>FreaxMATE</name>
+  </developer>
+  <description>
+    <p>Write down the few things that matter today. Park everything else in Later.</p>
+    <p>Orthros keeps your days as plain markdown files in one calm column: tomorrow, today and the days before. Markdown only shows on the line you are editing. Optional sync with a server you run yourself.</p>
+  </description>
+  <launchable type="desktop-id">io.github.freaxmate.orthros.desktop</launchable>
+  <url type="homepage">https://freaxmate.github.io/orthros/</url>
+  <url type="vcs-browser">https://github.com/FreaxMATE/orthros</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://freaxmate.github.io/orthros/screenshot-light.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-15"/>
+  </releases>
+</component>

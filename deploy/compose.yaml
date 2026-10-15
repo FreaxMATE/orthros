@@ -1,0 +1,13 @@
+# docker compose up -d   (or: podman compose up -d)
+# The token is printed on first start: docker compose logs orthros
+services:
+  orthros:
+    image: ghcr.io/freaxmate/orthros-server:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - orthros:/data
+
+volumes:
+  orthros:

@@ -1,13 +1,36 @@
 name: Release
 
-# Push a tag like v0.2.0: builds Linux and macOS packages into a draft
-# release, to check and publish by hand.
+# Push a tag like v0.2.0: builds everything into a draft release, to check
+# and publish by hand. The Docker image is pushed right away (a tag with a
+# "-" like v0.2.0-rc.1 doesn't move :latest).
 on:
   push:
     tags: ["v*"]
 
+env:
+  TAG: ${{ github.ref_name }}
+
 jobs:
-  build:
+  draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" --draft $prerelease --title "Orthros $TAG" --notes-file .github/release-notes.md || true
+          id="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n1)"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  app:
+    needs: draft
     permissions:
       contents: write
     strategy:
@@ -25,7 +48,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: System libraries for Tauri
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
@@ -37,7 +60,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: Swatinem/rust-cache@v2
 
@@ -45,13 +68,134 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Orthros ${{ github.ref_name }}
-          releaseBody: |
-            **Linux:** the `.AppImage` runs anywhere; `.deb` for Debian/Ubuntu. Nix: `nix run github:FreaxMATE/orthros`.
-            **macOS:** `aarch64` for Apple silicon, `x64` for Intel. The app isn't signed: after copying it to Applications, run `xattr -dr com.apple.quarantine /Applications/Orthros.app` once.
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.draft.outputs.id }}
           args: ${{ matrix.args }}
+
+      # The Flatpak is built from this .deb.
+      - if: startsWith(matrix.platform, 'ubuntu')
+        uses: actions/upload-artifact@v7
+        with:
+          name: deb
+          path: target/release/bundle/deb/*.deb
+
+  flatpak:
+    needs: app
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: deb
+          path: deb
+      - name: Build the bundle
+        working-directory: packaging/flatpak
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          git clone --depth 1 https://github.com/flathub/shared-modules.git
+          cp ../../deb/*.deb orthros.deb
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --repo=repo build io.github.freaxmate.orthros.yml
+          flatpak build-bundle repo "Orthros_${TAG#v}_x86_64.flatpak" io.github.freaxmate.orthros --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak
+          path: packaging/flatpak/*.flatpak
+
+  server:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            name: orthros-server-linux-x86_64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            name: orthros-server-linux-aarch64
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            name: orthros-server-macos-aarch64
+          - runner: macos-latest
+            target: x86_64-apple-darwin
+            name: orthros-server-macos-x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - if: startsWith(matrix.runner, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: |
+          cargo build --release --locked -p orthros-server --target ${{ matrix.target }}
+          mkdir -p out
+          cp target/${{ matrix.target }}/release/orthros-server out/${{ matrix.name }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.name }}
+          path: out/${{ matrix.name }}
+
+  attach:
+    needs: [draft, flatpak, server]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+          pattern: "{flatpak,orthros-server-*}"
+      - name: Upload to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ needs.draft.outputs.id }}
+        run: |
+          for f in assets/*; do
+            gh api --method POST -H "Content-Type: application/octet-stream" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$ID/assets?name=$(basename "$f")" \
+              --input "$f" --jq .name
+          done
+
+  docker:
+    needs: server
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist-server
+          merge-multiple: true
+          pattern: orthros-server-linux-*
+      - run: |
+          chmod +x dist-server/*
+          mv dist-server/orthros-server-linux-x86_64 dist-server/orthros-server-linux-amd64
+          mv dist-server/orthros-server-linux-aarch64 dist-server/orthros-server-linux-arm64
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/freaxmate/orthros-server
+          tags: type=semver,pattern={{version}}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -182,8 +182,31 @@ fn tray(app: &AppHandle) -> tauri::Result<()> {
 
 // ------------------------------------------------------------------ run
 
+/// `orthros --connect <server> <token>` sets up sync and exits.
+fn connect_command() -> Option<i32> {
+    let args: Vec<String> = std::env::args().collect();
+    let i = args.iter().position(|a| a == "--connect")?;
+    let (Some(server), Some(token)) = (args.get(i + 1), args.get(i + 2)) else {
+        eprintln!("usage: orthros --connect https://your-server <token>");
+        return Some(2);
+    };
+    match sync::connect(server, token) {
+        Ok(path) => {
+            println!("Sync set up ({}). Start Orthros; the dot at the top right turns green once it reaches the server.", path.display());
+            Some(0)
+        }
+        Err(e) => {
+            eprintln!("orthros: {e}");
+            Some(1)
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(code) = connect_command() {
+        std::process::exit(code);
+    }
     let store = Arc::new(Store::new(Store::default_root()).expect("cannot create the orthros data directory"));
 
     let mut builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
@@ -221,7 +244,11 @@ pub fn run() {
                 return Ok(());
             }
             main_window(&handle)?;
-            tray(&handle)?;
+            // Not every desktop has a tray (GNOME without AppIndicator, some
+            // Flatpak setups): Orthros then just runs without the icon.
+            if let Err(e) = tray(&handle) {
+                eprintln!("orthros: no tray icon: {e}");
+            }
             app.manage(sync::start(handle.clone(), store.clone()));
             match watcher::start(handle.clone(), store.clone()) {
                 Ok(w) => {

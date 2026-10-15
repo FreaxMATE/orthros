@@ -23,56 +23,102 @@
 </picture>
 
 Write down the few things that matter today. Park everything else in **Later**.
-Orthros keeps your days as plain markdown files and syncs them with a server
-you run yourself.
+Your days are plain markdown files on your computer, optionally synced with a
+server you run yourself.
+
+## Install
+
+Download Orthros from the **[latest release](https://github.com/FreaxMATE/orthros/releases/latest)** and open it. That's all: it works on its own, no account, no server.
+
+| System | File |
+|---|---|
+| macOS (Apple silicon / Intel) | `Orthros_*_aarch64.dmg` / `Orthros_*_x64.dmg` |
+| Any Linux | `Orthros_*.AppImage` or `Orthros_*.flatpak` |
+| Debian, Ubuntu | `Orthros_*.deb` |
+| Fedora, openSUSE | `Orthros-*.rpm` |
+| Nix, NixOS | `nix run github:FreaxMATE/orthros` ([more](#nix-and-nixos)) |
+
+<details>
+<summary>macOS says the app can't be opened</summary>
+
+Orthros isn't signed with an Apple developer certificate. After moving it to Applications, run once in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Orthros.app
+```
+</details>
 
 ## Features
 
 - **One column of days.** Tomorrow, today and the days before, so you can plan the evening before.
 - **Later.** A separate list for ideas and someday tasks, out of today's way.
 - **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
-- **Quick capture.** One shortcut from anywhere opens a small popup: type, Enter, done.
+- **Quick capture.** A shortcut from anywhere opens a small popup: type, Enter, done.
 - **Plain files.** Every day is a `.md` file you can grep, back up or open in any editor.
-- **Self-hosted sync.** Offline-first. Edits from several devices merge line by line, and nothing is overwritten.
+- **Sync, if you want it.** Offline-first, with your own server. Edits from several devices merge line by line.
 
-## Install
+## Quick capture
 
-**macOS and Linux:** download the `.dmg`, `.AppImage` or `.deb` from the
-[latest release](https://github.com/FreaxMATE/orthros/releases/latest).
-The macOS app isn't signed; after copying it to Applications, run once:
+- **macOS:** press `Ctrl-Option-Space` while Orthros is running.
+- **Linux:** add a keyboard shortcut in your desktop's settings that runs `orthros --capture` (Flatpak: `flatpak run io.github.freaxmate.orthros --capture`).
+
+Closing the window keeps Orthros running in the menu bar or top bar. On GNOME, the icon needs the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/).
+
+## Sync your devices
+
+Optional. You need a machine that's always on, such as a home server, a Raspberry Pi or a small VPS.
+
+**1. Start the server**, with one of these. It prints a token on first start.
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/Orthros.app
+# Docker or Podman
+docker run -d --name orthros --restart unless-stopped -p 127.0.0.1:8787:8787 -v orthros:/data ghcr.io/freaxmate/orthros-server
+
+# Or any Linux with systemd
+curl -fsSL https://freaxmate.github.io/orthros/install-server.sh | sh
 ```
 
-**Nix:** `nix run github:FreaxMATE/orthros`, or add
-`inputs.orthros.packages.${system}.orthros` to your packages.
+On NixOS: `services.orthros-server.enable = true;` ([below](#nix-and-nixos)). Binaries for other setups are on the [release page](https://github.com/FreaxMATE/orthros/releases/latest). Show the token again with `docker exec orthros /orthros-server token` or `sudo cat /var/lib/orthros/token`.
 
-**Quick capture:** `Ctrl-Option-Space` on macOS. On GNOME, bind a custom
-shortcut to `orthros --capture`. Closing the window keeps Orthros in the top
-bar (GNOME needs the AppIndicator extension).
+**2. Make it reachable over HTTPS.** The easiest way is [Tailscale](https://tailscale.com), which keeps it private to your devices:
 
-## Sync
+```sh
+sudo tailscale serve --bg --https=8444 http://127.0.0.1:8787
+```
 
-Run the server, then point each device at it.
+Any reverse proxy with HTTPS (Caddy, nginx) works too.
+
+**3. Connect each device:**
+
+```sh
+orthros --connect https://your-server:8444 YOUR-TOKEN
+```
+
+On macOS, run `/Applications/Orthros.app/Contents/MacOS/orthros --connect …`; with Flatpak, `flatpak run io.github.freaxmate.orthros --connect …`.
+The dot at the top right of the window shows the state: green when synced, amber when the server can't be reached. Changes made meanwhile are kept and sent later.
+
+## Nix and NixOS
 
 ```nix
-# NixOS, with this flake as an input
-imports = [ inputs.orthros.nixosModules.server ];
-services.orthros-server = {
-  enable = true;                                  # 127.0.0.1:8787
-  tokenFile = "/var/lib/secrets/orthros-token";   # head -c 32 /dev/urandom | base64
+# flake.nix
+inputs.orthros.url = "github:FreaxMATE/orthros";
+```
+
+The app, with Home Manager (it also sets up sync and a GNOME shortcut, `Ctrl+Alt+Space`):
+
+```nix
+imports = [ inputs.orthros.homeManagerModules.default ];
+programs.orthros = {
+  enable = true;
+  sync.server = "https://your-server:8444";   # optional; token in ~/.config/orthros/token
 };
 ```
 
-Elsewhere: `orthros-server --token-file FILE [--data DIR] [--listen ADDR:PORT]`.
-Put HTTPS in front of it, for example `tailscale serve --bg --https=8444 http://127.0.0.1:8787`.
+The server, on NixOS:
 
-On each device, create `sync.json` in `~/.config/orthros/` (macOS:
-`~/Library/Application Support/orthros/`):
-
-```json
-{ "server": "https://your-server:8444", "token_file": "~/.config/orthros/token" }
+```nix
+imports = [ inputs.orthros.nixosModules.server ];
+services.orthros-server.enable = true;   # 127.0.0.1:8787, token in /var/lib/orthros/token
 ```
 
 ## Keys
@@ -87,7 +133,7 @@ On each device, create `sync.json` in `~/.config/orthros/` (macOS:
 
 On macOS, `Cmd` instead of `Ctrl`.
 
-## Development
+## Build from source
 
 ```sh
 nix develop            # or: Rust, Node and the Tauri prerequisites

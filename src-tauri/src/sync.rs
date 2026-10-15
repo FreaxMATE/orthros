@@ -77,6 +77,24 @@ impl From<std::io::Error> for Failure {
     }
 }
 
+/// `orthros --connect <server> <token>`: write sync.json (owner-only, the
+/// token inline) where this platform keeps it, Flatpak sandbox included.
+pub fn connect(server: &str, token: &str) -> Result<PathBuf, String> {
+    use std::io::Write;
+    if !server.starts_with("http://") && !server.starts_with("https://") {
+        return Err(format!("the server address must start with https:// (got {server})"));
+    }
+    let path = config_path();
+    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&serde_json::json!({ "server": server, "token": token.trim() })).map_err(|e| e.to_string())?;
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+    opts.open(&path).and_then(|mut f| f.write_all(json.as_bytes())).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(path)
+}
+
 pub fn config_path() -> PathBuf {
     dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("orthros").join("sync.json")
 }
