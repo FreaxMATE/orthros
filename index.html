@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orthros</title>
+  </head>
+  <body>
+    <header class="top" data-tauri-drag-region>
+      <nav class="tabs" aria-label="Views">
+        <button type="button" data-view="today" aria-current="page">Today</button>
+        <button type="button" data-view="later">Later</button>
+        <button type="button" data-view="days">Days</button>
+        <button type="button" data-view="search">Search</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="view-today" class="view" aria-label="Days"></section>
+
+      <section id="view-later" class="view" aria-label="Later" hidden>
+        <div class="day">
+          <div class="day-meta">not today, not forgotten</div>
+          <h1 class="day-title">Later</h1>
+          <div id="later-editor" class="doc"></div>
+        </div>
+      </section>
+
+      <section id="view-days" class="view" aria-label="All days" hidden>
+        <h1 class="day-title">Days</h1>
+        <ul id="days-list" class="plain-list"></ul>
+      </section>
+
+      <section id="view-search" class="view" aria-label="Search" hidden>
+        <label class="search-box">
+          <span class="visually-hidden">Search all days and Later</span>
+          <input id="search-input" type="search" placeholder="Search" autocomplete="off" spellcheck="false" />
+        </label>
+        <ul id="search-results" class="plain-list"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
