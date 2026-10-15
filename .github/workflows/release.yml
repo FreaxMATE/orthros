@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag like v0.2.0: builds Linux and macOS packages into a draft
+# release, to check and publish by hand.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: System libraries for Tauri
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Orthros ${{ github.ref_name }}
+          releaseBody: |
+            **Linux:** the `.AppImage` runs anywhere; `.deb` for Debian/Ubuntu. Nix: `nix run github:FreaxMATE/orthros`.
+            **macOS:** `aarch64` for Apple silicon, `x64` for Intel. The app isn't signed: after copying it to Applications, run `xattr -dr com.apple.quarantine /Applications/Orthros.app` once.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

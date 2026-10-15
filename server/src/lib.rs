@@ -20,7 +20,7 @@ use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, put};
 use axum::{Json, Router};
-use orthros_core::protocol::{Changes, Put, PutResult, RemoteDoc};
+use orthros_core::protocol::{Changes, Put, PutResult, RemoteDoc, Wait};
 use orthros_core::{doc_path, hash};
 use serde::{Deserialize, Serialize};
 
@@ -34,6 +34,8 @@ struct Index {
 pub struct Space {
     root: PathBuf,
     index: Mutex<Index>,
+    /// The current revision, for clients waiting on /api/wait.
+    rev: tokio::sync::watch::Sender<u64>,
 }
 
 impl Space {
@@ -44,7 +46,8 @@ impl Space {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Self::scan(&root)?,
             Err(e) => return Err(e),
         };
-        let space = Self { root, index: Mutex::new(index) };
+        let rev = tokio::sync::watch::Sender::new(index.rev);
+        let space = Self { root, index: Mutex::new(index), rev };
         space.save(&space.index.lock().unwrap())?;
         Ok(space)
     }
@@ -115,6 +118,17 @@ async fn changes(State(space): State<Shared>, Query(q): Query<Since>) -> HttpRes
     Ok(Json(Changes { rev: index.rev, docs }))
 }
 
+/// Long poll: return once the revision is past `since`, or after a while
+/// (the client simply asks again).
+async fn wait(State(space): State<Shared>, Query(q): Query<Since>) -> Json<Wait> {
+    let mut rx = space.rev.subscribe();
+    let _ = tokio::time::timeout(WAIT, rx.wait_for(|&rev| rev > q.since)).await;
+    let rev = *rx.borrow();
+    Json(Wait { rev })
+}
+
+const WAIT: std::time::Duration = std::time::Duration::from_secs(50);
+
 async fn put_doc(State(space): State<Shared>, UrlPath(name): UrlPath<String>, Json(body): Json<Put>) -> HttpResult<Json<PutResult>> {
     let path = doc_path(&space.root, &name).ok_or((StatusCode::BAD_REQUEST, format!("invalid document name: {name}")))?;
     let mut index = space.index.lock().unwrap();
@@ -139,6 +153,7 @@ async fn put_doc(State(space): State<Shared>, UrlPath(name): UrlPath<String>, Js
     let rev = index.rev;
     index.docs.insert(name, rev);
     space.save(&index).map_err(internal)?;
+    space.rev.send_replace(rev);
     Ok(Json(PutResult::Ok { rev }))
 }
 
@@ -164,6 +179,7 @@ async fn auth(State(token): State<Arc<String>>, req: Request, next: Next) -> Res
 pub fn app(space: Shared, token: String) -> Router {
     Router::new()
         .route("/api/changes", get(changes))
+        .route("/api/wait", get(wait))
         .route("/api/doc/{*name}", put(put_doc))
         .with_state(space)
         .layer(middleware::from_fn_with_state(Arc::new(token), auth))
@@ -230,6 +246,29 @@ mod tests {
         assert_eq!(r["rev"], 2);
         let (_, r) = call(&app, "GET", "/api/changes?since=1", TOKEN, None).await;
         assert_eq!(r["docs"][0]["content"], "");
+    }
+
+    #[tokio::test]
+    async fn wait_returns_when_something_changes() {
+        let space = space();
+        let app = app(space, TOKEN.into());
+        // Already past: immediate.
+        let put = serde_json::json!({"base": hash(""), "content": "- x\n"});
+        call(&app, "PUT", "/api/doc/later", TOKEN, Some(put)).await;
+        let (_, r) = call(&app, "GET", "/api/wait?since=0", TOKEN, None).await;
+        assert_eq!(r["rev"], 1);
+
+        // Not yet: blocks until another device writes.
+        let waiter = {
+            let app = app.clone();
+            tokio::spawn(async move { call(&app, "GET", "/api/wait?since=1", TOKEN, None).await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(!waiter.is_finished());
+        let put = serde_json::json!({"base": hash("- x\n"), "content": "- y\n"});
+        call(&app, "PUT", "/api/doc/later", TOKEN, Some(put)).await;
+        let (_, r) = tokio::time::timeout(std::time::Duration::from_secs(2), waiter).await.unwrap().unwrap();
+        assert_eq!(r["rev"], 2);
     }
 
     #[tokio::test]

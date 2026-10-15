@@ -2,6 +2,9 @@
 //!
 //!   GET /api/changes?since=N   every document changed after revision N
 //!   PUT /api/doc/<name>        upload, if the server still has `base`
+//!   GET /api/wait?since=N      answers as soon as the revision passes N
+//!                              (or after ~50 s): clients keep one open to
+//!                              hear about other devices' edits at once
 //!
 //! The server keeps one global revision counter; each accepted upload bumps
 //! it. A client remembers the last revision it saw and, per document, the
@@ -41,4 +44,10 @@ pub enum PutResult {
     Ok { rev: u64 },
     /// The server's copy moved on: merge with `current` and try again.
     Conflict { rev: u64, current: String },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Wait {
+    /// The server's current revision.
+    pub rev: u64,
 }

@@ -28,30 +28,30 @@ async function on<T>(event: string, handler: (payload: T) => void) {
 }
 
 const KEY = "orthros:";
+const demo = !inTauri && new URLSearchParams(location.search).has("demo");
 
 // `?demo` in the browser: start from a sample space (UI work, screenshots).
-if (!inTauri && new URLSearchParams(location.search).has("demo")) {
+if (demo) {
   const d = (n: number) => {
     const t = new Date();
     t.setDate(t.getDate() + n);
     return t.toLocaleDateString("sv-SE"); // YYYY-MM-DD
   };
   const sample: Record<string, string> = {
-    [`days/${d(1)}`]: "- [ ] Send the draft to my supervisor\n",
+    [`days/${d(1)}`]: "- [ ] Prepare the slides for Friday\n- [ ] Call the dentist\n",
     [`days/${d(0)}`]: [
-      "- [x] Understand the structure of the statistics section",
-      "- [ ] Write the statistics section",
-      "  - [ ] Describe the **hypothesis tests**",
-      "- [ ] Investigate _January_ outliers",
-      "- [ ] Add regressors to the model",
-      "  - [x] Cross-border capacity",
-      "  - [ ] Price lags, see `lag_features.py`",
+      "- [x] Review yesterday's notes",
+      "- [ ] Write the methods section",
+      "  - [x] Outline the evaluation",
+      "  - [ ] Describe the **data sources**",
+      "- [ ] Reply to _Anna_ about the workshop",
+      "- [ ] Fix the plotting script in `plots.py`",
       "## Notes",
-      "- Ask about outlier treatment in the [ENTSO-E docs](https://transparency.entsoe.eu)",
+      "- The [style guide](https://example.org) wants figures as PDF",
       "",
     ].join("\n"),
-    [`days/${d(-1)}`]: "- [x] Load ENTSO-E data for 2023\n- [ ] Read the price forecasting review paper\n",
-    later: "- Quantile regression for price spikes?\n- Paper on the merit-order effect\n- Try a LightGBM baseline\n",
+    [`days/${d(-1)}`]: "- [x] Submit the travel expenses\n- [x] Read the chapter on sampling\n- [ ] Clean up the bibliography\n",
+    later: "- A book on deep work\n- Learn the basics of Rust\n- Try a standing desk\n",
   };
   for (const [k, v] of Object.entries(sample)) localStorage.setItem(KEY + k, v);
 }
@@ -96,7 +96,9 @@ export const api = {
   syncStatus: () =>
     inTauri
       ? call<SyncStatus>("sync_status")
-      : Promise.resolve<SyncStatus>({ state: "off", message: null, pending: 0, last: null }),
+      : Promise.resolve<SyncStatus>(
+          demo ? { state: "synced", message: null, pending: 0, last: Date.now() / 1000 } : { state: "off", message: null, pending: 0, last: null },
+        ),
   onSyncStatus: (f: (s: SyncStatus) => void) => on<SyncStatus>("sync-status", f),
   onDocChanged: (f: (d: { name: string; content: string }) => void) => on("doc-changed", f),
 

@@ -188,7 +188,24 @@ function clock(unix: number) {
   return new Date(unix * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// A sync often takes milliseconds: hold the pulse long enough to be seen.
+const MIN_PULSE = 700;
+let pulseSince = 0;
+let held: number | undefined;
+
 function showSync(s: SyncStatus) {
+  window.clearTimeout(held);
+  const shown = $("#sync").dataset.state;
+  if (s.state === "syncing" && shown !== "syncing") pulseSince = Date.now();
+  const wait = pulseSince + MIN_PULSE - Date.now();
+  if (shown === "syncing" && s.state !== "syncing" && wait > 0) {
+    held = window.setTimeout(() => renderSync(s), wait);
+    return;
+  }
+  renderSync(s);
+}
+
+function renderSync(s: SyncStatus) {
   const el = $("#sync");
   el.dataset.state = s.state;
   const waiting = s.pending ? ` · ${s.pending} waiting` : "";

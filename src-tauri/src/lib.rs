@@ -59,7 +59,7 @@ fn search(store: tauri::State<Arc<Store>>, query: String) -> Result<Vec<Hit>> {
 #[tauri::command]
 fn sync_now(app: AppHandle) {
     if let Some(s) = app.try_state::<Sync>() {
-        s.trigger();
+        s.now();
     }
 }
 

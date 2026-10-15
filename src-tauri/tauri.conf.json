@@ -19,6 +19,7 @@
     "active": true,
     "targets": [
       "deb",
+      "appimage",
       "app",
       "dmg"
     ],
@@ -30,6 +31,7 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "longDescription": "Plan the few things that matter today, park everything else in Later. Plain markdown files, synced to your own server."
   }
 }

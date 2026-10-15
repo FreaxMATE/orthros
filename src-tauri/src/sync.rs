@@ -8,8 +8,10 @@
 //!   push  upload every document that differs from its base; if the server
 //!         moved on meanwhile it answers with its copy, we merge and retry
 //!
-//! Runs a moment after edits, on request (window focus) and every minute.
-//! Offline is normal: the cycle just fails and the next one catches up.
+//! Runs half a second after local edits, as soon as the server reports
+//! another device's edit (a long poll kept open on /api/wait), on request,
+//! and every minute. Offline is normal: changes wait and go out once the
+//! server is reachable again.
 //!
 //! Configured by `sync.json` in the config dir (~/.config/orthros/sync.json,
 //! macOS: ~/Library/Application Support/orthros/sync.json):
@@ -19,10 +21,11 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use orthros_core::protocol::{Changes, Put, PutResult};
+use orthros_core::protocol::{Changes, Put, PutResult, Wait};
 use orthros_core::{hash, merge3};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -30,9 +33,10 @@ use tauri::{AppHandle, Emitter};
 use crate::store::Store;
 use crate::DocChanged;
 
+/// A full cycle at least this often, even if the long poll says nothing.
 const INTERVAL: Duration = Duration::from_secs(60);
-/// After a trigger, wait this long so a burst of typing syncs once.
-const SETTLE: Duration = Duration::from_millis(1500);
+/// After a local edit, wait this long so a burst of typing syncs once.
+const SETTLE: Duration = Duration::from_millis(500);
 
 #[derive(Deserialize)]
 struct Config {
@@ -103,9 +107,9 @@ struct Client {
 }
 
 impl Client {
-    fn new(c: &Config) -> Self {
+    fn new(c: &Config, timeout: Duration) -> Self {
         let agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(20)))
+            .timeout_global(Some(timeout))
             .http_status_as_error(false)
             .build()
             .into();
@@ -124,6 +128,13 @@ impl Client {
         let mut res = self.agent.get(format!("{}/api/changes?since={since}", self.server)).header("Authorization", &self.auth).call().map_err(net)?;
         Self::check(res.status().as_u16())?;
         res.body_mut().read_json().map_err(net)
+    }
+
+    /// Long poll: returns the server's revision once it passes `since`.
+    fn wait(&self, since: u64) -> Result<u64, Failure> {
+        let mut res = self.agent.get(format!("{}/api/wait?since={since}", self.server)).header("Authorization", &self.auth).call().map_err(net)?;
+        Self::check(res.status().as_u16())?;
+        res.body_mut().read_json::<Wait>().map(|w| w.rev).map_err(net)
     }
 
     fn put(&self, name: &str, put: &Put) -> Result<PutResult, Failure> {
@@ -146,6 +157,8 @@ struct Engine {
     /// Called with (name, content) when sync changed a local document.
     notify: Notify,
     store: Arc<Store>,
+    /// The revision we have pulled up to, shared with the listener.
+    cursor: Arc<AtomicU64>,
 }
 
 impl Engine {
@@ -198,7 +211,7 @@ impl Engine {
     }
 
     fn cycle(&self, cfg: &Config) -> Result<usize, Failure> {
-        let client = Client::new(cfg);
+        let client = Client::new(cfg, Duration::from_secs(20));
         let mut state = self.load_state();
         if state.server != client.server {
             // A different server: start over, merging everything as new.
@@ -213,6 +226,7 @@ impl Engine {
         }
         state.cursor = changes.rev;
         self.save_state(&state)?;
+        self.cursor.store(changes.rev, Ordering::Relaxed);
 
         // Push.
         for (name, mut local, mut base) in self.dirty()? {
@@ -234,14 +248,30 @@ impl Engine {
     }
 }
 
-/// Handle to the background sync thread.
+enum Msg {
+    /// A local document changed.
+    Changed,
+    /// The server has something new (or came back).
+    Remote,
+    /// The user asked (click on the dot, window focus, tray).
+    Now,
+    /// The server can't be reached.
+    Unreachable(String),
+}
+
+/// Handle to the background sync threads.
 pub struct Sync {
-    tx: Sender<()>,
+    tx: Sender<Msg>,
 }
 
 impl Sync {
-    pub fn trigger(&self) {
-        let _ = self.tx.send(());
+    /// A local document changed: shown as pending at once, synced shortly.
+    pub fn changed(&self) {
+        let _ = self.tx.send(Msg::Changed);
+    }
+
+    pub fn now(&self) {
+        let _ = self.tx.send(Msg::Now);
     }
 }
 
@@ -249,45 +279,118 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// Keep one long poll open on the server so other devices' edits arrive
+/// within a second, and notice at once when the server becomes unreachable.
+fn listen(cursor: Arc<AtomicU64>, tx: Sender<Msg>) {
+    let mut seen = 0u64;
+    let mut failing = false;
+    let mut backoff = Duration::from_secs(2);
+    loop {
+        let cfg = match load_config() {
+            Ok(Some(cfg)) => cfg,
+            _ => {
+                std::thread::sleep(Duration::from_secs(10));
+                continue;
+            }
+        };
+        let since = cursor.load(Ordering::Relaxed).max(seen);
+        let sent = match Client::new(&cfg, Duration::from_secs(80)).wait(since) {
+            Ok(rev) => {
+                backoff = Duration::from_secs(2);
+                seen = rev;
+                let msg = (rev > since || failing).then_some(Msg::Remote);
+                failing = false;
+                msg.map(|m| tx.send(m))
+            }
+            Err(Failure::Offline(m)) => {
+                let sent = (!failing).then(|| tx.send(Msg::Unreachable(m)));
+                failing = true;
+                std::thread::sleep(backoff);
+                backoff = (backoff * 2).min(Duration::from_secs(30));
+                sent
+            }
+            // A token problem or an old server: the regular cycle reports it.
+            Err(Failure::Error(_)) => {
+                std::thread::sleep(Duration::from_secs(30));
+                None
+            }
+        };
+        if let Some(Err(_)) = sent {
+            return; // the sync thread is gone
+        }
+    }
+}
+
 pub fn start(app: AppHandle, store: Arc<Store>) -> Sync {
-    let (tx, rx) = mpsc::channel::<()>();
+    let (tx, rx) = mpsc::channel::<Msg>();
+    let cursor = Arc::new(AtomicU64::new(0));
+    {
+        let (cursor, tx) = (cursor.clone(), tx.clone());
+        std::thread::spawn(move || listen(cursor, tx));
+    }
     std::thread::spawn(move || {
         let emitter = app.clone();
         let notify: Notify = Arc::new(move |name: &str, content: &str| {
             let _ = emitter.emit("doc-changed", DocChanged { name: name.into(), content: content.into() });
         });
-        let engine = Engine { notify, store };
-        let emit = |s: &Status| {
+        let engine = Engine { notify, store, cursor };
+        let mut current = Status { state: "off", ..Default::default() };
+        fn emit(app: &AppHandle, current: &mut Status, s: Status) {
             let _ = app.emit("sync-status", s.clone());
             *crate::LAST_STATUS.lock().unwrap() = s.clone();
-        };
+            *current = s;
+        }
+        let pending = |e: &Engine| e.dirty().map(|d| d.len()).unwrap_or(0);
         let mut last: Option<u64> = None;
+        let mut run = true;
         loop {
-            match load_config() {
-                Ok(None) => emit(&Status { state: "off", ..Default::default() }),
-                Err(e) => emit(&Status { state: "error", message: Some(format!("bad sync config: {e}")), ..Default::default() }),
-                Ok(Some(cfg)) => {
-                    let pending = engine.dirty().map(|d| d.len()).unwrap_or(0);
-                    emit(&Status { state: "syncing", pending, last, ..Default::default() });
-                    let status = match engine.cycle(&cfg) {
-                        Ok(pending) => {
-                            last = Some(now());
-                            Status { state: "synced", pending, last, message: None }
+            if run {
+                match load_config() {
+                    Ok(None) => emit(&app, &mut current, Status { state: "off", ..Default::default() }),
+                    Err(e) => emit(&app, &mut current, Status { state: "error", message: Some(format!("bad sync config: {e}")), ..Default::default() }),
+                    Ok(Some(cfg)) => {
+                        if current.state != "offline" {
+                            emit(&app, &mut current, Status { state: "syncing", pending: pending(&engine), last, message: None });
                         }
-                        Err(Failure::Offline(m)) => Status { state: "offline", message: Some(m), pending: engine.dirty().map(|d| d.len()).unwrap_or(0), last },
-                        Err(Failure::Error(m)) => Status { state: "error", message: Some(m), pending: engine.dirty().map(|d| d.len()).unwrap_or(0), last },
-                    };
-                    emit(&status);
+                        let status = match engine.cycle(&cfg) {
+                            Ok(pending) => {
+                                last = Some(now());
+                                Status { state: "synced", pending, last, message: None }
+                            }
+                            Err(Failure::Offline(m)) => Status { state: "offline", message: Some(m), pending: pending(&engine), last },
+                            Err(Failure::Error(m)) => Status { state: "error", message: Some(m), pending: pending(&engine), last },
+                        };
+                        emit(&app, &mut current, status);
+                    }
                 }
             }
-            match rx.recv_timeout(INTERVAL) {
-                Ok(()) => {
-                    std::thread::sleep(SETTLE);
-                    while rx.try_recv().is_ok() {}
-                }
-                Err(RecvTimeoutError::Timeout) => {}
+            run = match rx.recv_timeout(INTERVAL) {
+                Err(RecvTimeoutError::Timeout) => true,
                 Err(RecvTimeoutError::Disconnected) => break,
-            }
+                Ok(Msg::Unreachable(m)) => {
+                    if current.state != "offline" && current.state != "off" {
+                        emit(&app, &mut current, Status { state: "offline", message: Some(m), pending: pending(&engine), last });
+                    }
+                    false
+                }
+                Ok(msg) => {
+                    if let Msg::Changed = msg {
+                        // Show the edit as on its way (or waiting, if offline).
+                        let state = if current.state == "offline" { "offline" } else { "syncing" };
+                        if current.state != "off" {
+                            let message = current.message.clone();
+                            emit(&app, &mut current, Status { state, pending: pending(&engine), message, last });
+                        }
+                        std::thread::sleep(SETTLE);
+                    }
+                    while let Ok(m) = rx.try_recv() {
+                        if let Msg::Unreachable(_) = m {
+                            continue;
+                        }
+                    }
+                    true
+                }
+            };
         }
     });
     Sync { tx }
@@ -319,7 +422,7 @@ mod tests {
     fn device(tag: &str) -> Engine {
         let dir = std::env::temp_dir().join(format!("orthros-sync-{tag}-{}-{:?}", std::process::id(), std::thread::current().id()));
         let _ = fs::remove_dir_all(&dir);
-        Engine { notify: Arc::new(|_: &str, _: &str| {}), store: Arc::new(Store::new(dir).unwrap()) }
+        Engine { notify: Arc::new(|_: &str, _: &str| {}), store: Arc::new(Store::new(dir).unwrap()), cursor: Arc::new(AtomicU64::new(0)) }
     }
 
     fn cfg(server: &str) -> Config {

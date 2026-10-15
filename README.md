@@ -1,119 +1,103 @@
-# orthros
+<p align="center">
+  <img src="site/icon.svg" width="72" height="72" alt="">
+</p>
 
-*Orthros (ὄρθρος): the hour before dawn, when you plan the day.*
+<h1 align="center">Orthros</h1>
 
-A quiet daily todo journal for macOS and Linux. One column of days
-(tomorrow, today, then everything before), each a short list you write in the
-morning or the evening before. Plus a **Later** list for the things you want
-to come back to someday, so they stop circling in your head.
+<p align="center">A quiet daily todo journal for macOS and Linux.</p>
 
-Your data is a folder of plain markdown files:
+<p align="center">
+  <a href="https://github.com/FreaxMATE/orthros/actions/workflows/ci.yml"><img src="https://github.com/FreaxMATE/orthros/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/FreaxMATE/orthros/releases/latest"><img src="https://img.shields.io/github/v/release/FreaxMATE/orthros?label=release&color=b4441a" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-6f6a62" alt="License: AGPL-3.0"></a>
+</p>
 
-```
-~/.local/share/orthros/            (macOS: ~/Library/Application Support/orthros)
-├── days/2026-10-15.md
-├── days/2026-10-16.md
-└── later.md
-```
+<p align="center">
+  <a href="https://freaxmate.github.io/orthros/">Website</a> ·
+  <a href="https://github.com/FreaxMATE/orthros/releases/latest">Download</a>
+</p>
 
-Override the location with `ORTHROS_DIR=/some/folder`.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/screenshot-dark.png">
+  <img alt="Orthros showing tomorrow's and today's lists with checkboxes, nested tasks and a short note." src="site/screenshot-light.png">
+</picture>
 
-## Writing
+Write down the few things that matter today. Park everything else in **Later**.
+Orthros keeps your days as plain markdown files and syncs them with a server
+you run yourself.
 
-Markdown is drawn as you type and only shows on the line you're editing.
+## Features
 
-| Key | Does |
-|---|---|
-| `Enter` | new item (a new checkbox after a task); on an empty item, end the list |
-| `Tab` / `Shift-Tab` | indent / outdent |
-| `Ctrl-Enter` (`Cmd-Enter`) | tick / untick; turns a line into a task |
-| `Backspace` at the start of an item | outdent, then task → bullet → plain line |
-| `[] ` at the start of a line | becomes a task |
-| `↑` / `↓` past the first / last line | move to the neighbouring day |
-| `Ctrl-1…4` (`Cmd`) | Today / Later / Days / Search |
-| `Ctrl-K` (`Cmd-K`) | search |
-
-Also: `## Heading`, `**bold**`, `_italic_`, `` `code` ``, `~~strike~~`,
-`[links](https://…)` and bare URLs (click to open).
-
-## Quick capture
-
-A small popup for a thought you don't want to lose: type it, `Enter` saves it
-to **Later** (or `Tab` first: a task for today), `Esc` closes.
-
-- **Linux (GNOME):** bind a custom shortcut to `orthros --capture`
-  (Settings, Keyboard, Custom Shortcuts; or via dconf/Home Manager). GNOME on
-  Wayland doesn't let apps register global shortcuts themselves.
-- **macOS:** `Ctrl-Option-Space` while Orthros is running.
-
-Closing the main window keeps Orthros running in the top bar / menu bar
-(GNOME needs the *AppIndicator and KStatusNotifierItem Support* extension).
-Quit from its menu there.
-
-## Sync
-
-Every device keeps the whole space locally and works offline. A small server
-(`orthros-server`) is the hub. Edits to different lines merge; if the same
-line was changed on two devices, both versions are kept, one under the
-other. The dot in the corner shows the state (words only when something is
-wrong); click it to sync now.
-
-**Server** (NixOS):
-
-```nix
-# flake inputs: orthros.url = "github:FreaxMATE/orthros";
-imports = [ inputs.orthros.nixosModules.server ];
-services.orthros-server = {
-  enable = true;                          # listens on 127.0.0.1:8787
-  tokenFile = "/var/lib/secrets/orthros-token";
-};
-```
-
-Generate a token with `head -c 32 /dev/urandom | base64`, and put HTTPS in
-front, for example `tailscale serve --bg --https=8444 http://127.0.0.1:8787`.
-Without NixOS: `orthros-server --token-file FILE [--data DIR] [--listen ADDR:PORT]`.
-
-**Each device:** `~/.config/orthros/sync.json`
-(macOS: `~/Library/Application Support/orthros/sync.json`):
-
-```json
-{ "server": "https://your-server.example.ts.net:8444", "token_file": "~/.config/orthros/token" }
-```
-
-with the token in that file (`chmod 600`), or inline as `"token": "..."`.
+- **One column of days.** Tomorrow, today and the days before, so you can plan the evening before.
+- **Later.** A separate list for ideas and someday tasks, out of today's way.
+- **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
+- **Quick capture.** One shortcut from anywhere opens a small popup: type, Enter, done.
+- **Plain files.** Every day is a `.md` file you can grep, back up or open in any editor.
+- **Self-hosted sync.** Offline-first. Edits from several devices merge line by line, and nothing is overwritten.
 
 ## Install
 
-Nix (Linux): `nix run github:FreaxMATE/orthros`, or add
-`inputs.orthros.packages.${system}.orthros` to your packages.
-
-macOS: see Develop; `npm run tauri build` gives `Orthros.app`.
-
-## Develop
-
-Linux (Nix): `direnv allow` once, or `nix develop`, then
+**macOS and Linux:** download the `.dmg`, `.AppImage` or `.deb` from the
+[latest release](https://github.com/FreaxMATE/orthros/releases/latest).
+The macOS app isn't signed; after copying it to Applications, run once:
 
 ```sh
-npm install
-npm run tauri dev      # the app, with hot reload
-npm run tauri build    # release build
+xattr -dr com.apple.quarantine /Applications/Orthros.app
 ```
 
-The UI alone runs in a browser with `npm run dev`; open
-`http://localhost:1420/?demo` for sample data (stored in localStorage).
+**Nix:** `nix run github:FreaxMATE/orthros`, or add
+`inputs.orthros.packages.${system}.orthros` to your packages.
 
-macOS: install [rustup](https://rustup.rs) and Node, then the same `npm`
-commands. `npm run tauri build` produces `Orthros.app` and a `.dmg` under
-`src-tauri/target/release/bundle/`.
+**Quick capture:** `Ctrl-Option-Space` on macOS. On GNOME, bind a custom
+shortcut to `orthros --capture`. Closing the window keeps Orthros in the top
+bar (GNOME needs the AppIndicator extension).
 
-Tests (merging, the server, two devices syncing through it): `cargo test --workspace`.
+## Sync
 
-## Stack
+Run the server, then point each device at it.
 
-[Tauri 2](https://tauri.app) with a small Rust core (files, search, sync)
-and a TypeScript front end built on [CodeMirror 6](https://codemirror.net).
-`core/` is shared with `server/` (axum).
+```nix
+# NixOS, with this flake as an input
+imports = [ inputs.orthros.nixosModules.server ];
+services.orthros-server = {
+  enable = true;                                  # 127.0.0.1:8787
+  tokenFile = "/var/lib/secrets/orthros-token";   # head -c 32 /dev/urandom | base64
+};
+```
+
+Elsewhere: `orthros-server --token-file FILE [--data DIR] [--listen ADDR:PORT]`.
+Put HTTPS in front of it, for example `tailscale serve --bg --https=8444 http://127.0.0.1:8787`.
+
+On each device, create `sync.json` in `~/.config/orthros/` (macOS:
+`~/Library/Application Support/orthros/`):
+
+```json
+{ "server": "https://your-server:8444", "token_file": "~/.config/orthros/token" }
+```
+
+## Keys
+
+| Key | Action |
+|---|---|
+| `Enter` / `Tab` / `Shift-Tab` | new item, indent, outdent |
+| `Ctrl-Enter` | tick or untick; makes a line a task |
+| `[] ` at the start of a line | becomes a task |
+| `Ctrl-1` … `Ctrl-4` | Today, Later, Days, Search |
+| `Ctrl-K` | search |
+
+On macOS, `Cmd` instead of `Ctrl`.
+
+## Development
+
+```sh
+nix develop            # or: Rust, Node and the Tauri prerequisites
+npm install
+npm run tauri dev
+cargo test --workspace
+```
+
+Built with [Tauri](https://tauri.app), Rust and [CodeMirror](https://codemirror.net).
 
 ## License
 
-AGPL-3.0-only. See [LICENSE](LICENSE).
+[AGPL-3.0](LICENSE)

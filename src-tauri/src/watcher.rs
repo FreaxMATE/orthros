@@ -29,7 +29,7 @@ pub fn start(app: AppHandle, store: Arc<Store>) -> notify_debouncer_mini::notify
         }
         if any {
             if let Some(sync) = app.try_state::<Sync>() {
-                sync.trigger();
+                sync.changed();
             }
         }
     })?;
