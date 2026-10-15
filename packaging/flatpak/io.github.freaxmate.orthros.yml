@@ -5,6 +5,10 @@ runtime: org.gnome.Platform
 runtime-version: "50"
 sdk: org.gnome.Sdk
 command: orthros
+# Some shared modules install into /app/lib64 with newer CMake.
+build-options:
+  prepend-pkg-config-path: /app/lib64/pkgconfig
+  prepend-ld-library-path: /app/lib64
 finish-args:
   - --socket=wayland
   - --socket=fallback-x11
@@ -27,6 +31,8 @@ modules:
       - ar -x orthros.deb
       - tar -xf data.tar.*
       - install -Dm755 usr/bin/orthros /app/bin/orthros
+      # The tray libraries, where the dynamic loader looks at runtime.
+      - if [ -d /app/lib64 ]; then cp -a /app/lib64/. /app/lib/; fi
       - install -Dm644 usr/share/applications/Orthros.desktop /app/share/applications/io.github.freaxmate.orthros.desktop
       - desktop-file-edit --set-icon=io.github.freaxmate.orthros /app/share/applications/io.github.freaxmate.orthros.desktop
       - |

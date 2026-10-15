@@ -23,10 +23,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          prerelease=""
-          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$TAG" --draft $prerelease --title "Orthros $TAG" --notes-file .github/release-notes.md || true
+          prerelease=false
+          case "$TAG" in *-*) prerelease=true ;; esac
+          # Reuse the draft when re-running; otherwise create it. The id comes
+          # straight from the API (a fresh draft isn't listed right away).
           id="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n1)"
+          if [ -z "$id" ]; then
+            id="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$TAG" -f name="Orthros $TAG" -F draft=true -F prerelease="$prerelease" \
+              -F body=@.github/release-notes.md --jq .id)"
+          fi
+          test -n "$id"
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   app:
@@ -93,7 +100,7 @@ jobs:
         working-directory: packaging/flatpak
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
+          sudo apt-get install -y flatpak flatpak-builder appstream
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           git clone --depth 1 https://github.com/flathub/shared-modules.git
           cp ../../deb/*.deb orthros.deb
