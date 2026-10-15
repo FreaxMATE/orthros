@@ -9,6 +9,9 @@ command: orthros
 build-options:
   prepend-pkg-config-path: /app/lib64/pkgconfig
   prepend-ld-library-path: /app/lib64
+  ldflags: -L/app/lib64
+  env:
+    LIBRARY_PATH: /app/lib64
 finish-args:
   - --socket=wayland
   - --socket=fallback-x11
