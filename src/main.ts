@@ -3,10 +3,11 @@ import "@fontsource/source-serif-4/400-italic.css";
 import "@fontsource/source-serif-4/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
+import "./tokens.css";
 import "./style.css";
 import { wireThemeSwitch } from "./theme";
 
-import { api, type Hit } from "./api";
+import { api, type Hit, type SyncStatus } from "./api";
 import { addDays, meta, title, today } from "./dates";
 import { createEditor, type DocEditor } from "./editor/editor";
 
@@ -164,6 +165,52 @@ function hitItem(h: Hit) {
   return li;
 }
 
+// ---------------------------------------------------------------- changes on disk
+// Sync, quick capture or another editor changed a file.
+
+let rebuild: number | undefined;
+
+function onDocChanged({ name, content }: { name: string; content: string }) {
+  if (name === "later") return later.remote(content);
+  const editor = stream.find((e) => e.name === name);
+  if (editor) return editor.remote(content);
+  // A day we don't show yet (written on another device): rebuild the stream.
+  if (content.trim()) {
+    window.clearTimeout(rebuild);
+    rebuild = window.setTimeout(() => void buildStream(), 300);
+  }
+}
+
+// ---------------------------------------------------------------- sync status
+// Always a dot; words only when something needs attention.
+
+function clock(unix: number) {
+  return new Date(unix * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function showSync(s: SyncStatus) {
+  const el = $("#sync");
+  el.dataset.state = s.state;
+  const waiting = s.pending ? ` · ${s.pending} waiting` : "";
+  const text: Record<SyncStatus["state"], string> = {
+    off: "",
+    syncing: "",
+    synced: "",
+    offline: `offline${waiting}`,
+    error: `sync error${waiting}`,
+  };
+  const tip: Record<SyncStatus["state"], string> = {
+    off: "Sync is not set up (see the README).",
+    syncing: "Syncing…",
+    synced: s.last ? `Synced at ${clock(s.last)}.` : "Synced.",
+    offline: `Can't reach the sync server${s.last ? `; last synced ${clock(s.last)}` : ""}. Changes are kept and sent later.`,
+    error: s.message ?? "Sync failed.",
+  };
+  $("#sync-text").textContent = text[s.state];
+  el.title = `${tip[s.state]}${s.state === "off" ? "" : " Click to sync now."}`;
+  el.setAttribute("aria-label", tip[s.state]);
+}
+
 // ---------------------------------------------------------------- views
 
 const views: View[] = ["today", "later", "days", "search"];
@@ -182,6 +229,10 @@ function show(v: View) {
 
 function wire() {
   wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
+  $<HTMLButtonElement>("#sync").onclick = () => void api.syncNow();
+  void api.onDocChanged(onDocChanged);
+  void api.onSyncStatus(showSync);
+  void api.syncStatus().then(showSync);
 
   document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach((b) => {
     b.onclick = () => show(b.dataset.view as View);
@@ -217,6 +268,7 @@ function wire() {
   });
   window.addEventListener("focus", () => {
     if (today() !== streamDate) void buildStream();
+    void api.syncNow();
   });
 }
 

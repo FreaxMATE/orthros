@@ -10,24 +10,18 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Orthros",
-        "width": 960,
-        "height": 820,
-        "minWidth": 420,
-        "minHeight": 400,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:"
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "app", "dmg"],
+    "targets": [
+      "deb",
+      "app",
+      "dmg"
+    ],
     "category": "Productivity",
     "shortDescription": "A quiet daily todo journal",
     "icon": [

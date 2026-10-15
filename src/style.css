@@ -1,48 +1,5 @@
-/* The "Quiet" design: one centred column, serif text, mono metadata. */
-
-:root {
-  --bg: #fdfdfc;
-  --text: #22201d;
-  --muted: #6f6a62;
-  --faint: #a8a299;
-  --line: #e6e3de;
-  --accent: #b4441a;
-  --caret: #b4441a;
-  --code-bg: #f3f1ed;
-  --serif: "Source Serif 4", Georgia, serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --indent: 1.75em;
-  --marker: 1.75em;
-  color-scheme: light;
-}
-
-/* Dark: chosen explicitly (data-theme="dark"), or by the system when the
-   switch is on "system" (no data-theme). The two blocks must stay equal. */
-:root[data-theme="dark"] {
-  --bg: #191817;
-  --text: #e8e4dc;
-  --muted: #a39e95;
-  --faint: #6b665f;
-  --line: #34312d;
-  --accent: #f08a5d;
-  --caret: #ffb48c;
-  --code-bg: #24221f;
-  color-scheme: dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --bg: #191817;
-    --text: #e8e4dc;
-    --muted: #a39e95;
-    --faint: #6b665f;
-    --line: #34312d;
-    --accent: #f08a5d;
-    --caret: #ffb48c;
-    --code-bg: #24221f;
-    color-scheme: dark;
-  }
-}
+/* The "Quiet" design: one centred column, serif text, mono metadata.
+   Colours and fonts live in tokens.css (shared with the capture popup). */
 
 * { box-sizing: border-box; }
 
@@ -90,10 +47,17 @@ body {
 .tabs button[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
 .tabs button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 4px; }
 
-.theme-switch {
+.top-right {
   position: absolute;
   top: 26px;
   right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.theme-switch,
+.sync {
   font: 13px/1 var(--mono);
   letter-spacing: 0.02em;
   color: var(--faint);
@@ -101,6 +65,31 @@ body {
   border: 0;
   padding: 4px 0;
   cursor: pointer;
+}
+
+.sync { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.sync:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 4px; }
+.sync[data-state="off"] { cursor: default; }
+
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.sync[data-state="off"] .sync-dot { background: none; box-shadow: inset 0 0 0 1.25px var(--faint); }
+.sync[data-state="synced"] .sync-dot { background: var(--ok); }
+.sync[data-state="syncing"] .sync-dot { background: var(--ok); animation: sync-pulse 1s ease-in-out infinite alternate; }
+.sync[data-state="offline"] .sync-dot { background: var(--warn); }
+.sync[data-state="offline"] { color: var(--warn); }
+.sync[data-state="error"] .sync-dot { background: var(--accent); }
+.sync[data-state="error"] { color: var(--accent); }
+
+@keyframes sync-pulse { from { opacity: 1; } to { opacity: 0.25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sync[data-state="syncing"] .sync-dot { animation: none; opacity: 0.5; }
 }
 
 .theme-switch:hover { color: var(--text); }
@@ -194,16 +183,15 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
 .cm-content { padding: 0; }
 .cm-selectionBackground, .cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 22%, transparent) !important; }
 
-.cm-line { padding: 3px 0; }
 
 /* Indentation: each level indents; list items hang their marker in front
    (padding only: CodeMirror measures lines and dislikes margins). */
 .cm-lvl-1 { --lvl: 1; } .cm-lvl-2 { --lvl: 2; } .cm-lvl-3 { --lvl: 3; } .cm-lvl-4 { --lvl: 4; }
 .cm-lvl-5 { --lvl: 5; } .cm-lvl-6 { --lvl: 6; } .cm-lvl-7 { --lvl: 7; } .cm-lvl-8 { --lvl: 8; }
 
-.cm-line.cm-ln { padding-left: calc(var(--lvl, 0) * var(--indent)); }
+.cm-editor .cm-line.cm-ln { padding-left: calc(var(--lvl, 0) * var(--indent)); }
 
-.cm-line.cm-ln-task, .cm-line.cm-ln-bullet {
+.cm-editor .cm-line.cm-ln-task, .cm-editor .cm-line.cm-ln-bullet {
   padding-left: calc(var(--lvl, 0) * var(--indent) + var(--marker));
   text-indent: calc(-1 * var(--marker));
 }

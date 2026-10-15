@@ -1,0 +1,51 @@
+/* Colours and fonts, light and dark. */
+
+:root {
+  --bg: #fdfdfc;
+  --text: #22201d;
+  --muted: #6f6a62;
+  --faint: #a8a299;
+  --line: #e6e3de;
+  --accent: #b4441a;
+  --caret: #b4441a;
+  --ok: #3f8a5a;
+  --warn: #b7791f;
+  --code-bg: #f3f1ed;
+  --serif: "Source Serif 4", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --indent: 1.75em;
+  --marker: 1.75em;
+  color-scheme: light;
+}
+
+/* Dark: chosen explicitly (data-theme="dark"), or by the system when the
+   switch is on "system" (no data-theme). The two blocks must stay equal. */
+:root[data-theme="dark"] {
+  --bg: #191817;
+  --text: #e8e4dc;
+  --muted: #a39e95;
+  --faint: #6b665f;
+  --line: #34312d;
+  --accent: #f08a5d;
+  --caret: #ffb48c;
+  --ok: #6fbf8a;
+  --warn: #e0a84e;
+  --code-bg: #24221f;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #191817;
+    --text: #e8e4dc;
+    --muted: #a39e95;
+    --faint: #6b665f;
+    --line: #34312d;
+    --accent: #f08a5d;
+    --caret: #ffb48c;
+  --ok: #6fbf8a;
+  --warn: #e0a84e;
+    --code-bg: #24221f;
+    color-scheme: dark;
+  }
+}

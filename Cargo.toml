@@ -1,0 +1,16 @@
+[workspace]
+members = ["core", "server", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Konstantin Unruh"]
+license = "AGPL-3.0-only"
+edition = "2021"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orthros capture</title>
+  </head>
+  <body>
+    <form id="capture" class="capture" autocomplete="off">
+      <label class="visually-hidden" for="thought">Capture a thought</label>
+      <input id="thought" type="text" spellcheck="true" placeholder="A thought for later…" />
+      <div class="bar">
+        <div class="targets" role="radiogroup" aria-label="Save to">
+          <button type="button" role="radio" data-target="later" aria-checked="true">Later</button>
+          <button type="button" role="radio" data-target="today" aria-checked="false">Today</button>
+        </div>
+        <span class="spacer"></span>
+        <span class="hint"><kbd>Enter</kbd> save</span>
+        <span class="hint"><kbd>Tab</kbd> switch</span>
+        <span class="hint"><kbd>Esc</kbd> close</span>
+      </div>
+    </form>
+    <script type="module" src="/src/capture.ts"></script>
+  </body>
+</html>

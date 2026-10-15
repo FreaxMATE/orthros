@@ -1,6 +1,6 @@
 import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { api, openUrl } from "../api";
 import { boundaryKeys, outlinerKeys } from "./keys";
@@ -11,6 +11,8 @@ export interface DocEditor {
   name: string;
   /** Write pending changes now. */
   flush(): Promise<void>;
+  /** The document changed on disk (sync, capture, another editor). */
+  remote(content: string): void;
   focusLine(line: number): void;
   focusEdge(edge: "start" | "end"): void;
 }
@@ -36,20 +38,62 @@ const theme = EditorView.theme({
   ".cm-content": { caretColor: "var(--caret)" },
   ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--caret)", marginLeft: "-1px" },
   ".cm-placeholder": { color: "var(--faint)", fontStyle: "italic" },
+  ".cm-line": { padding: "3px 0" },
 });
+
+/** Replace the editor's text with `next`, touching only the part that
+ *  differs so the cursor stays put. Not an edit: no save, no undo step. */
+function replaceAll(view: EditorView, next: string) {
+  const cur = view.state.doc.toString();
+  if (cur === next) return;
+  let a = 0;
+  while (a < cur.length && a < next.length && cur[a] === next[a]) a++;
+  let b = 0;
+  while (b < cur.length - a && b < next.length - a && cur[cur.length - 1 - b] === next[next.length - 1 - b]) b++;
+  view.dispatch({
+    changes: { from: a, to: cur.length - b, insert: next.slice(a, next.length - b) },
+    annotations: [Transaction.remote.of(true), Transaction.addToHistory.of(false)],
+  });
+}
 
 export function createEditor(o: Options): DocEditor {
   let timer: number | undefined;
-  let saved = o.doc;
+  // The on-disk version the editor's text is based on. Saves send it along,
+  // so Rust can merge if the file changed underneath us meanwhile.
+  let basis = o.doc;
+
+  /** The editor's text, with an untouched seed counting as empty. */
+  const text = () => {
+    const t = view.state.doc.toString();
+    return t.trim() === o.seed.trim() ? "" : t;
+  };
 
   const flush = async () => {
     window.clearTimeout(timer);
     timer = undefined;
-    let text = view.state.doc.toString();
-    if (text.trim() === o.seed.trim()) text = "";
-    if (text === saved) return;
-    saved = text;
-    await api.write(o.name, text);
+    const sent = text();
+    if (sent === basis) return;
+    const disk = await api.save(o.name, sent, basis);
+    if (text() === sent) {
+      // Nothing typed while saving: show the merge result, if any.
+      if (disk !== sent) replaceAll(view, disk);
+      basis = disk;
+    } else {
+      // Typed meanwhile: that text builds on what we sent. The pending save
+      // will merge it with whatever is on disk now.
+      basis = sent;
+    }
+  };
+
+  const remote = (content: string) => {
+    if (content === text()) {
+      basis = content;
+    } else if (timer === undefined && text() === basis) {
+      // No local edits pending: just show the new version.
+      replaceAll(view, content);
+      basis = content;
+    }
+    // Otherwise our pending save merges with disk, so nothing is lost.
   };
 
   const view = new EditorView({
@@ -69,7 +113,7 @@ export function createEditor(o: Options): DocEditor {
         placeholder(o.placeholder),
         EditorView.contentAttributes.of({ spellcheck: "true", "aria-label": o.placeholder }),
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) {
+          if (u.docChanged && !u.transactions.some((t) => t.annotation(Transaction.remote))) {
             window.clearTimeout(timer);
             timer = window.setTimeout(flush, SAVE_DELAY);
           }
@@ -94,6 +138,7 @@ export function createEditor(o: Options): DocEditor {
     view,
     name: o.name,
     flush,
+    remote,
     focusLine(line) {
       const l = view.state.doc.line(Math.min(Math.max(line + 1, 1), view.state.doc.lines));
       view.focus();
