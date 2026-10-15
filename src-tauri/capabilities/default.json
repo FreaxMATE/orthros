@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The main window: core APIs plus opening links in the browser.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging", "opener:allow-open-url"]
+  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-set-theme", "opener:allow-open-url"]
 }

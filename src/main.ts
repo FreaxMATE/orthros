@@ -4,6 +4,7 @@ import "@fontsource/source-serif-4/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "./style.css";
+import { wireThemeSwitch } from "./theme";
 
 import { api, type Hit } from "./api";
 import { addDays, meta, title, today } from "./dates";
@@ -180,6 +181,8 @@ function show(v: View) {
 }
 
 function wire() {
+  wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
+
   document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach((b) => {
     b.onclick = () => show(b.dataset.view as View);
   });

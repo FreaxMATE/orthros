@@ -7,23 +7,40 @@
   --faint: #a8a299;
   --line: #e6e3de;
   --accent: #b4441a;
+  --caret: #b4441a;
   --code-bg: #f3f1ed;
   --serif: "Source Serif 4", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --indent: 1.75em;
   --marker: 1.75em;
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+/* Dark: chosen explicitly (data-theme="dark"), or by the system when the
+   switch is on "system" (no data-theme). The two blocks must stay equal. */
+:root[data-theme="dark"] {
+  --bg: #191817;
+  --text: #e8e4dc;
+  --muted: #a39e95;
+  --faint: #6b665f;
+  --line: #34312d;
+  --accent: #f08a5d;
+  --caret: #ffb48c;
+  --code-bg: #24221f;
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #191817;
     --text: #e8e4dc;
     --muted: #a39e95;
     --faint: #6b665f;
     --line: #34312d;
     --accent: #f08a5d;
+    --caret: #ffb48c;
     --code-bg: #24221f;
+    color-scheme: dark;
   }
 }
 
@@ -72,6 +89,22 @@ body {
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
 .tabs button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 4px; }
+
+.theme-switch {
+  position: absolute;
+  top: 26px;
+  right: 24px;
+  font: 13px/1 var(--mono);
+  letter-spacing: 0.02em;
+  color: var(--faint);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.theme-switch:hover { color: var(--text); }
+.theme-switch:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 4px; }
 
 /* ---------------------------------------------------------------- layout */
 
@@ -158,10 +191,8 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
 
 .cm-editor { background: none; color: var(--text); }
 .cm-editor.cm-focused { outline: none; }
-.cm-content { padding: 0; caret-color: var(--accent); }
-.cm-cursor { border-left: 1.5px solid var(--accent); }
+.cm-content { padding: 0; }
 .cm-selectionBackground, .cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 22%, transparent) !important; }
-.cm-placeholder { color: var(--faint); font-style: italic; }
 
 .cm-line { padding: 3px 0; }
 

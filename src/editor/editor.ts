@@ -1,7 +1,7 @@
 import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { api, openUrl } from "../api";
 import { boundaryKeys, outlinerKeys } from "./keys";
 import { livePreview } from "./livePreview";
@@ -29,9 +29,13 @@ export interface Options {
 
 const SAVE_DELAY = 400;
 
-// Through CodeMirror's theme so it outranks the base theme's monospace.
+// Through CodeMirror's theme: its base theme outranks plain CSS for these
+// (monospace font, a thin black cursor that vanishes on dark backgrounds).
 const theme = EditorView.theme({
   ".cm-scroller": { fontFamily: "var(--serif)", lineHeight: "1.55", overflow: "visible" },
+  ".cm-content": { caretColor: "var(--caret)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--caret)", marginLeft: "-1px" },
+  ".cm-placeholder": { color: "var(--faint)", fontStyle: "italic" },
 });
 
 export function createEditor(o: Options): DocEditor {
@@ -54,6 +58,7 @@ export function createEditor(o: Options): DocEditor {
       doc: o.doc,
       extensions: [
         theme,
+        drawSelection(),
         history(),
         EditorView.lineWrapping,
         markdown({ base: markdownLanguage }),

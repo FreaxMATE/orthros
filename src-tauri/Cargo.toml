@@ -19,6 +19,9 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 dirs = "6"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+
 [profile.release]
 codegen-units = 1
 lto = true

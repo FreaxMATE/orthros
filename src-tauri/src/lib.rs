@@ -1,6 +1,8 @@
 mod store;
+mod system_theme;
 
 use store::{Hit, Store};
+use system_theme::SystemTheme;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -40,7 +42,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(store)
-        .invoke_handler(tauri::generate_handler![read_doc, write_doc, list_days, search, space_dir])
+        .manage(SystemTheme::default())
+        .setup(|app| {
+            system_theme::watch(app.handle().clone());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            read_doc,
+            write_doc,
+            list_days,
+            search,
+            space_dir,
+            system_theme::system_theme
+        ])
         .run(tauri::generate_context!())
         .expect("error while running orthros");
 }
