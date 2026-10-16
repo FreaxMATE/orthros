@@ -6,6 +6,7 @@ import { api, openUrl } from "../api";
 import { blockEnd, moveStep, removeBlock, type Lines } from "./blocks";
 import { boundaryKeys, outlinerKeys } from "./keys";
 import { livePreview } from "./livePreview";
+import { math } from "./math";
 
 export interface DocEditor {
   view: EditorView;
@@ -164,6 +165,7 @@ export function createEditor(o: Options): DocEditor {
         EditorView.lineWrapping,
         markdown({ base: markdownLanguage }),
         livePreview(openUrl),
+        math,
         outlinerKeys,
         keymap.of([
           { key: "Alt-ArrowUp", run: (v) => moveKey(v, -1) },

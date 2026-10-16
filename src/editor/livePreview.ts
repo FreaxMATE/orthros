@@ -6,10 +6,12 @@
 // - Inline syntax (**bold**, _em_, `code`, ~~strike~~, [links](url)) and
 //   heading hashes are hidden on every line except the ones holding the
 //   cursor, where they show dimmed so they can be edited.
+// - $math$ is drawn by math.ts.
 
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { insideMath } from "./math";
 
 /** One line's block structure, parsed with a regex (cheap, and exactly the
  *  subset of markdown we write). */
@@ -110,6 +112,7 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
         const marker = Decoration.replace({ widget: new MarkerWidget(info.kind, info.done, line.from + info.checkAt) });
         deco.push(marker.range(line.from, line.from + info.contentStart));
         atomic.add(line.from, line.from + info.contentStart, marker);
+        if (info.done) cls.push("is-done");
         if (info.done && line.to > line.from + info.contentStart) {
           deco.push(Decoration.mark({ class: "cm-done" }).range(line.from + info.contentStart, line.to));
         }
@@ -130,6 +133,8 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
       from,
       to,
       enter: (node) => {
+        // Formulas are drawn by math.ts; "*" or "_" in them aren't markdown.
+        if (insideMath(state, node.from, node.to)) return false;
         const name = node.name;
         const isActive = active.has(state.doc.lineAt(node.from).number);
         if (INLINE[name]) {

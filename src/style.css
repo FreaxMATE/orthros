@@ -242,6 +242,14 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
 .cm-link[data-href] { cursor: pointer; }
 .cm-syntax { color: var(--faint); }
 
+/* Math: typeset with KaTeX; the source shows while the cursor touches it. */
+.cm-math .katex { font-size: 1.08em; }
+.cm-math-display { display: block; text-indent: 0; overflow-x: auto; overflow-y: hidden; }
+.cm-math-display .katex-display { margin: 0.15em 0; }
+.cm-line.is-done .cm-math { opacity: 0.55; }
+.cm-math-src { font-family: var(--mono); font-size: 0.82em; color: var(--muted); }
+.cm-math .katex-error { color: var(--accent) !important; font-family: var(--mono); font-size: 0.82em; }
+
 /* ---------------------------------------------------------------- moving items */
 
 .drag-grip {
