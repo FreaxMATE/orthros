@@ -97,10 +97,13 @@ body {
 
 /* ---------------------------------------------------------------- layout */
 
+/* The column follows the window: side margins grow with it, and lines stop
+   growing at a comfortable reading length. */
 main {
-  max-width: 620px;
+  --side: clamp(48px, 7vw, 120px);
+  width: min(1000px, 100% - 2 * var(--side));
   margin: 0 auto;
-  padding: 48px 24px 160px;
+  padding: 48px 0 160px;
 }
 
 .day { margin-bottom: 72px; }
