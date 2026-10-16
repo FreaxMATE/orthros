@@ -1,35 +1,31 @@
-You can now move tasks around, and the sync light finally settles.
+Write math the way you'd write it in your thesis.
 
 ## What's new
 
-### Move items
+### LaTeX math
 
-Hover a task and a small grip appears next to its checkbox. Drag it to reorder the day, drop it into tomorrow or any other day, or onto the **Later** tab to park it. Sub-items come along and are indented to fit their new place. Press `Esc` to cancel.
+Put a formula between dollar signs and Orthros typesets it, right inside your tasks and notes.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.2.0/site/release/0.2.0-move-dark.png">
-  <img alt="Dragging a task: a grip next to the checkbox and a line showing where it will land." src="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.2.0/site/release/0.2.0-move-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.3.0/site/release/0.3.0-math-dark.png">
+  <img alt="A day in Orthros with typeset math: symbols inside tasks and a centred equation between them." src="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.3.0/site/release/0.3.0-math-light.png">
 </picture>
 
-Prefer the keyboard? `Alt+Up` and `Alt+Down` move the task under the cursor along with its sub-items. Go past the first or last task and it moves into the day above or below.
+- `$\sigma^2 < 1$` sets math inside a sentence.
+- `$$...$$` sets a centred equation of its own. It can span several lines, so `aligned`, matrices and `cases` work too.
+- **Click a formula to edit it.** Its source shows while the cursor is on it and renders again when you move on.
+- **Copying copies the LaTeX**, ready to paste into a `.tex` file.
+- Dollar amounts like "5$" or "$5 and $10" stay text, and so does anything inside `code`.
+- A formula with a mistake shows its source in red instead of breaking the line.
 
-### Room to breathe
-
-The text column now grows with the window, and so do the margins. On a large monitor it stops at a comfortable reading width.
-
-## Fixed
-
-- **The sync light no longer pulses forever.** Orthros mistook its own file reads for changes, so every sync started the next one. Now it turns solid green once everything is sent.
-- **The cursor no longer jumps back while you type.** The same loop could briefly show a slightly older copy of what you had just written, which moved the cursor a few words back.
+Math is drawn with [KaTeX](https://katex.org), fast enough to keep up while you type. Its fonts come with the app, so it works offline. Your files stay plain markdown, the same `$...$` that pandoc, Obsidian and GitHub understand.
 
 ## Updating
 
 - **macOS:** quit Orthros from its menu bar icon, download the new `.dmg` and replace the app in Applications. Then run the `xattr` command below again.
 - **Linux:** quit Orthros from its top bar icon (closing the window only hides it), then install the new package below.
 - **Nix:** run `nix flake update orthros`, rebuild, then quit and reopen Orthros.
-- **Sync server:** no update needed. Version 0.1.0 servers work with this release.
-
-Your notes don't change: they stay plain markdown files.
+- **Sync server:** no update needed. Servers from 0.1.0 on work with this release.
 
 ## Install the app
 
