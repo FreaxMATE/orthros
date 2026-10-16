@@ -2694,7 +2694,7 @@ dependencies = [
 
 [[package]]
 name = "orthros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "dirs 6.0.0",
@@ -2715,7 +2715,7 @@ dependencies = [
 
 [[package]]
 name = "orthros-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "sha2 0.11.1",
@@ -2724,7 +2724,7 @@ dependencies = [
 
 [[package]]
 name = "orthros-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "dirs 6.0.0",

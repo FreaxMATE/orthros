@@ -24,7 +24,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   npmDeps = fetchNpmDeps {
     name = "orthros-${version}-npm-deps";
     inherit src;
-    hash = "sha256-f22Hk6vcttakWvEOtcsjKHg52jX3PYzHDJolc9os4TU=";
+    hash = "sha256-j4EutK3775NybFFON/3rFOc4Tc7PgpjlkeH1rG94pCw=";
   };
 
   nativeBuildInputs = [
