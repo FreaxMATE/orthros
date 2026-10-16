@@ -9,7 +9,9 @@ import { wireThemeSwitch } from "./theme";
 
 import { api, type Hit, type SyncStatus } from "./api";
 import { addDays, meta, title, today } from "./dates";
+import { insertBlock } from "./editor/blocks";
 import { createEditor, type DocEditor } from "./editor/editor";
+import { enableDrag } from "./drag";
 
 type View = "today" | "later" | "days" | "search";
 
@@ -63,6 +65,17 @@ async function buildStream() {
           const next = stream[index + dir];
           if (!next) return false;
           next.focusEdge(dir < 0 ? "end" : "start");
+          return true;
+        },
+        // Alt+Up past the first item goes to the end of the day above,
+        // Alt+Down past the last to the start of the day below.
+        onMoveOut: (dir, block) => {
+          const next = stream[index + dir];
+          if (!next) return false;
+          const lines = next.lines();
+          const r = insertBlock(lines, dir < 0 ? lines.length : 0, block);
+          next.setLines(r.lines, r.start);
+          next.view.focus();
           return true;
         },
       }),
@@ -246,6 +259,14 @@ function show(v: View) {
 
 function wire() {
   wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
+  enableDrag({
+    editors: () => ($("#view-later").hidden ? stream : [later]),
+    toLater: (block) => {
+      const lines = later.lines();
+      later.setLines(insertBlock(lines, lines.length, block).lines);
+    },
+    laterTab: $(`.tabs [data-view="later"]`),
+  });
   $<HTMLButtonElement>("#sync").onclick = () => {
     void api.syncNow();
     window.setTimeout(() => void api.syncStatus().then(showSync), 1500);

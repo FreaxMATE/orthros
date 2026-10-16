@@ -238,3 +238,46 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
 .cm-link { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .cm-link[data-href] { cursor: pointer; }
 .cm-syntax { color: var(--faint); }
+
+/* ---------------------------------------------------------------- moving items */
+
+.drag-grip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 14px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+  touch-action: none;
+}
+
+.drag-grip svg { fill: currentColor; }
+.drag-grip.is-shown { opacity: 1; pointer-events: auto; }
+.drag-grip:hover { color: var(--muted); }
+
+.drop-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  display: none;
+  pointer-events: none;
+}
+
+.drop-line.is-shown { display: block; }
+
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
+body.is-dragging .drag-grip { color: var(--accent); transition: none; }
+
+.tabs button.is-drop-target { color: var(--accent); border-bottom-color: var(--accent); }

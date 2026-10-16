@@ -128,6 +128,8 @@ services.orthros-server.enable = true;   # 127.0.0.1:8787, token in /var/lib/ort
 | `Enter` / `Tab` / `Shift-Tab` | new item, indent, outdent |
 | `Ctrl-Enter` | tick or untick; makes a line a task |
 | `[] ` at the start of a line | becomes a task |
+| `Alt-Up` / `Alt-Down` | move an item (with its sub-items); past the first or last item, into the next day |
+| drag the ⋮⋮ grip (shows on hover) | move an item to another place, another day, or onto the Later tab |
 | `Ctrl-1` … `Ctrl-4` | Today, Later, Days, Search |
 | `Ctrl-K` | search |
 

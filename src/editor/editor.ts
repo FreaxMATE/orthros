@@ -3,6 +3,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { api, openUrl } from "../api";
+import { blockEnd, moveStep, removeBlock, type Lines } from "./blocks";
 import { boundaryKeys, outlinerKeys } from "./keys";
 import { livePreview } from "./livePreview";
 
@@ -15,6 +16,11 @@ export interface DocEditor {
   remote(content: string): void;
   focusLine(line: number): void;
   focusEdge(edge: "start" | "end"): void;
+  /** The document as lines (an empty document is one empty line). */
+  lines(): Lines;
+  /** Replace the document with `lines` as one undoable edit, cursor at the
+   *  start of line `cursor` (0-based) plus `col`. */
+  setLines(lines: Lines, cursor?: number, col?: number): void;
 }
 
 export interface Options {
@@ -27,6 +33,9 @@ export interface Options {
   placeholder: string;
   /** Arrow off the first/last line; return true if focus moved. */
   onLeave?: (dir: -1 | 1) => boolean;
+  /** Alt+Up on the first / Alt+Down on the last item: take `block` into the
+   *  neighbouring document; return true if it went. */
+  onMoveOut?: (dir: -1 | 1, block: Lines) => boolean;
 }
 
 const SAVE_DELAY = 400;
@@ -54,6 +63,26 @@ function replaceAll(view: EditorView, next: string) {
     changes: { from: a, to: cur.length - b, insert: next.slice(a, next.length - b) },
     annotations: [Transaction.remote.of(true), Transaction.addToHistory.of(false)],
   });
+}
+
+function setText(view: EditorView, next: string, cursor?: number) {
+  const cur = view.state.doc.toString();
+  let a = 0;
+  while (a < cur.length && a < next.length && cur[a] === next[a]) a++;
+  let b = 0;
+  while (b < cur.length - a && b < next.length - a && cur[cur.length - 1 - b] === next[next.length - 1 - b]) b++;
+  view.dispatch({
+    changes: cur === next ? [] : { from: a, to: cur.length - b, insert: next.slice(a, next.length - b) },
+    selection: cursor === undefined ? undefined : EditorSelection.cursor(Math.min(cursor, next.length)),
+    scrollIntoView: cursor !== undefined,
+    userEvent: "move",
+  });
+}
+
+function offsetOf(lines: Lines, line: number, col = 0) {
+  let pos = 0;
+  for (let n = 0; n < line && n < lines.length; n++) pos += lines[n].length + 1;
+  return pos + Math.min(col, lines[line]?.length ?? 0);
 }
 
 export function createEditor(o: Options): DocEditor {
@@ -92,6 +121,24 @@ export function createEditor(o: Options): DocEditor {
     }
   };
 
+  /** Alt+Up/Down: the item at the cursor (with its sub-items) one step. */
+  const moveKey = (view: EditorView, dir: -1 | 1) => {
+    const sel = view.state.selection.main;
+    const line = view.state.doc.lineAt(sel.head);
+    const lines = view.state.doc.toString().split("\n");
+    const i = line.number - 1;
+    if (lines[i].trim() === "") return false;
+    const col = sel.head - line.from;
+    const r = moveStep(lines, i, dir);
+    if (r === "out") {
+      const j = blockEnd(lines, i);
+      if (o.onMoveOut?.(dir, lines.slice(i, j + 1))) setText(view, removeBlock(lines, i, j).join("\n"));
+    } else if (r) {
+      setText(view, r.lines.join("\n"), offsetOf(r.lines, r.start, col));
+    }
+    return true;
+  };
+
   const remote = (content: string) => {
     // A late echo of one of our own earlier saves, not a new version:
     // showing it would briefly undo the latest typing (and move the cursor).
@@ -118,6 +165,10 @@ export function createEditor(o: Options): DocEditor {
         markdown({ base: markdownLanguage }),
         livePreview(openUrl),
         outlinerKeys,
+        keymap.of([
+          { key: "Alt-ArrowUp", run: (v) => moveKey(v, -1) },
+          { key: "Alt-ArrowDown", run: (v) => moveKey(v, 1) },
+        ]),
         o.onLeave ? boundaryKeys(o.onLeave) : [],
         keymap.of([...historyKeymap, ...defaultKeymap]),
         placeholder(o.placeholder),
@@ -153,6 +204,12 @@ export function createEditor(o: Options): DocEditor {
       const l = view.state.doc.line(Math.min(Math.max(line + 1, 1), view.state.doc.lines));
       view.focus();
       view.dispatch({ selection: EditorSelection.cursor(l.to), scrollIntoView: true });
+    },
+    lines() {
+      return view.state.doc.toString().split("\n");
+    },
+    setLines(lines, cursor, col) {
+      setText(view, lines.join("\n"), cursor === undefined ? undefined : offsetOf(lines, cursor, col));
     },
     focusEdge(edge) {
       view.focus();
