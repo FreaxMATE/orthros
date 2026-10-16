@@ -61,6 +61,12 @@ export function createEditor(o: Options): DocEditor {
   // The on-disk version the editor's text is based on. Saves send it along,
   // so Rust can merge if the file changed underneath us meanwhile.
   let basis = o.doc;
+  // What this editor saved most recently, to recognise stale echoes.
+  const recent: string[] = [];
+  const remember = (t: string) => {
+    recent.push(t);
+    if (recent.length > 20) recent.shift();
+  };
 
   /** The editor's text, with an untouched seed counting as empty. */
   const text = () => {
@@ -73,6 +79,7 @@ export function createEditor(o: Options): DocEditor {
     timer = undefined;
     const sent = text();
     if (sent === basis) return;
+    remember(sent);
     const disk = await api.save(o.name, sent, basis);
     if (text() === sent) {
       // Nothing typed while saving: show the merge result, if any.
@@ -86,6 +93,9 @@ export function createEditor(o: Options): DocEditor {
   };
 
   const remote = (content: string) => {
+    // A late echo of one of our own earlier saves, not a new version:
+    // showing it would briefly undo the latest typing (and move the cursor).
+    if (content !== text() && recent.includes(content)) return;
     if (content === text()) {
       basis = content;
     } else if (timer === undefined && text() === basis) {

@@ -246,7 +246,10 @@ function show(v: View) {
 
 function wire() {
   wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
-  $<HTMLButtonElement>("#sync").onclick = () => void api.syncNow();
+  $<HTMLButtonElement>("#sync").onclick = () => {
+    void api.syncNow();
+    window.setTimeout(() => void api.syncStatus().then(showSync), 1500);
+  };
   void api.onDocChanged(onDocChanged);
   void api.onSyncStatus(showSync);
   void api.syncStatus().then(showSync);
@@ -280,12 +283,14 @@ function wire() {
   };
   window.addEventListener("pagehide", flushAll);
   document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void api.syncStatus().then(showSync);
     if (document.hidden) flushAll();
     else if (today() !== streamDate) void buildStream();
   });
   window.addEventListener("focus", () => {
     if (today() !== streamDate) void buildStream();
     void api.syncNow();
+    void api.syncStatus().then(showSync);
   });
 }
 
