@@ -1,24 +1,46 @@
-Write math the way you'd write it in your thesis.
+Tables and code blocks, right under the task they belong to.
 
 ## What's new
 
-### LaTeX math
-
-Put a formula between dollar signs and Orthros typesets it, right inside your tasks and notes.
-
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.3.0/site/release/0.3.0-math-dark.png">
-  <img alt="A day in Orthros with typeset math: symbols inside tasks and a centred equation between them." src="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.3.0/site/release/0.3.0-math-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.4.0/site/release/0.4.0-blocks-dark.png">
+  <img alt="A day in Orthros: a table of results and a highlighted Python code block, each under its own task." src="https://raw.githubusercontent.com/FreaxMATE/orthros/v0.4.0/site/release/0.4.0-blocks-light.png">
 </picture>
 
-- `$\sigma^2 < 1$` sets math inside a sentence.
-- `$$...$$` sets a centred equation of its own. It can span several lines, so `aligned`, matrices and `cases` work too.
-- **Click a formula to edit it.** Its source shows while the cursor is on it and renders again when you move on.
-- **Copying copies the LaTeX**, ready to paste into a `.tex` file.
-- Dollar amounts like "5$" or "$5 and $10" stay text, and so does anything inside `code`.
-- A formula with a mistake shows its source in red instead of breaking the line.
+### Tables
 
-Math is drawn with [KaTeX](https://katex.org), fast enough to keep up while you type. Its fonts come with the app, so it works offline. Your files stay plain markdown, the same `$...$` that pandoc, Obsidian and GitHub understand.
+Markdown tables show as a clean grid. Click a cell to edit, and the source appears:
+
+- `Tab` and `Shift+Tab` jump between cells, and `Tab` after the last cell adds a row.
+- `Enter` adds a row below.
+- When you leave, the columns line up by themselves, keeping their alignment.
+- Bold, `code`, links and `$math$` work inside cells.
+
+To start a table, type `| Name | Value |` and press `Enter`.
+
+### Code blocks
+
+Fenced code blocks get a soft box, the language name and a copy button.
+
+- **Highlighting** covers about 140 languages, from Python, Rust, C and Bash to LaTeX, SQL, YAML and Nix. Each loads only when you use it.
+- **Starting a block:** type ` ```python ` and press `Enter`. The closing fence is added for you.
+- **Inside a block**, the keys work like in a code editor: `Enter` keeps the indentation, and `Tab` indents.
+
+### Attach things to a task
+
+A code block, a table or a note can belong to a task, and it moves along when you drag the task or use `Alt+Up`/`Alt+Down`:
+
+- type ` ``` ` or `|` on a new empty item to start a block under the task above
+- press `Shift+Enter` in a task for a line without a checkbox
+
+### Tasks with less typing
+
+In a day, `Enter` at the end of any line now starts a new task, also after a heading, a note or plain text. For plain text instead, press `Shift+Enter`, or `Backspace` once on the new task. Later keeps its bullets.
+
+## Fixed
+
+- **Linux:** Orthros no longer fails to start on some graphics setups (often NVIDIA, or in the Flatpak) with "Could not create default EGL display: EGL_BAD_PARAMETER".
+- **Linux:** the harmless "libayatana-appindicator is deprecated" warning no longer shows up on every start.
 
 ## Updating
 
