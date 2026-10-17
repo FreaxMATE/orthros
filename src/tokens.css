@@ -11,6 +11,13 @@
   --ok: #3f8a5a;
   --warn: #b7791f;
   --code-bg: #f3f1ed;
+  --hl-keyword: #94386f;
+  --hl-string: #4d7a26;
+  --hl-number: #b4441a;
+  --hl-comment: #9a948a;
+  --hl-type: #8a6110;
+  --hl-name: #2d5f8f;
+  --hl-meta: #6f6a62;
   --serif: "Source Serif 4", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --indent: 1.75em;
@@ -31,6 +38,13 @@
   --ok: #6fbf8a;
   --warn: #e0a84e;
   --code-bg: #24221f;
+  --hl-keyword: #dc93c4;
+  --hl-string: #a8cc7c;
+  --hl-number: #f08a5d;
+  --hl-comment: #7c766e;
+  --hl-type: #e1bb67;
+  --hl-name: #8cb8e3;
+  --hl-meta: #a39e95;
   color-scheme: dark;
 }
 
@@ -46,6 +60,13 @@
   --ok: #6fbf8a;
   --warn: #e0a84e;
     --code-bg: #24221f;
+    --hl-keyword: #dc93c4;
+    --hl-string: #a8cc7c;
+    --hl-number: #f08a5d;
+    --hl-comment: #7c766e;
+    --hl-type: #e1bb67;
+    --hl-name: #8cb8e3;
+    --hl-meta: #a39e95;
     color-scheme: dark;
   }
 }

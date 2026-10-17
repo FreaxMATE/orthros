@@ -2,7 +2,7 @@
 // left, drop it between lines of any visible day, or on the "Later" tab.
 // Sub-items travel with their parent. Esc cancels.
 
-import { blockEnd, insertBlock, moveWithin, removeBlock, type Lines } from "./editor/blocks";
+import { blockEnd, insertBlock, moveWithin, removeBlock, unitStart, type Lines } from "./editor/blocks";
 import type { DocEditor } from "./editor/editor";
 
 export interface DragTargets {
@@ -47,13 +47,28 @@ function lineAt(editors: DocEditor[], x: number, y: number) {
  *  on it; for other lines, the start of the text on the first row. */
 function anchor(editor: DocEditor, from: number, text: string) {
   const view = editor.view;
+  // A drawn table: next to its header row.
+  for (const wrap of view.dom.querySelectorAll<HTMLElement>(".cm-table-wrap")) {
+    if (view.posAtDOM(wrap) !== from) continue;
+    const head = wrap.querySelector("th, td")?.getBoundingClientRect();
+    const r = (wrap.querySelector("table") ?? wrap).getBoundingClientRect();
+    return { x: r.left, y: head ? head.top + head.height / 2 : r.top + 12 };
+  }
   const { node } = view.domAtPos(from);
   const el = node instanceof HTMLElement ? node : node.parentElement;
-  const lineEl = el?.closest(".cm-line");
+  const lineEl = el?.closest<HTMLElement>(".cm-line");
   const marker = lineEl?.querySelector(".cm-marker");
   if (marker) {
     const r = marker.getBoundingClientRect();
     if (r.width) return { x: r.left, y: r.top + r.height / 2 };
+  }
+  // A code block: next to the box, at its header.
+  if (lineEl?.classList.contains("cm-cb")) {
+    const r = lineEl.getBoundingClientRect();
+    const off = parseFloat(getComputedStyle(lineEl).backgroundPositionX) || 0;
+    const style = getComputedStyle(lineEl);
+    const top = r.top + parseFloat(style.paddingTop);
+    return { x: r.left + off, y: (top + r.bottom - parseFloat(style.paddingBottom)) / 2 };
   }
   const start = from + /^\s*/.exec(text)![0].length;
   const c = view.coordsAtPos(start, 1);
@@ -111,7 +126,10 @@ export function enableDrag(t: DragTargets) {
       return;
     }
     window.clearTimeout(hideTimer);
-    const { editor, line } = found;
+    const { editor } = found;
+    // A code block or table is grabbed by its first line.
+    const n = unitStart(editor.lines(), found.line.number - 1) + 1;
+    const line = n === found.line.number ? found.line : editor.view.state.doc.line(n);
     if (line.text.trim() === "") return hideGrip();
     const at = anchor(editor, line.from, line.text);
     if (!at) return hideGrip();

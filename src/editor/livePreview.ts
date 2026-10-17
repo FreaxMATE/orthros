@@ -6,11 +6,12 @@
 // - Inline syntax (**bold**, _em_, `code`, ~~strike~~, [links](url)) and
 //   heading hashes are hidden on every line except the ones holding the
 //   cursor, where they show dimmed so they can be edited.
-// - $math$ is drawn by math.ts.
+// - $math$ is drawn by math.ts, ```code``` by code.ts, tables by table.ts.
 
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { fences } from "./code";
 import { insideMath } from "./math";
 
 /** One line's block structure, parsed with a regex (cheap, and exactly the
@@ -101,9 +102,15 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
   const atomic = new RangeSetBuilder<Decoration>();
 
   for (const { from, to } of view.visibleRanges) {
+    // Code blocks are drawn by code.ts: no list markers in there.
+    const code = fences(state, from, to);
     // Block structure, line by line.
     for (let pos = from; pos <= to; ) {
       const line = state.doc.lineAt(pos);
+      if (code.some((f) => line.number >= f.first && line.number <= f.last)) {
+        pos = line.to + 1;
+        continue;
+      }
       const info = lineInfo(line.text);
       const isActive = active.has(line.number);
       const cls = ["cm-ln", `cm-lvl-${Math.min(info.level, 8)}`, `cm-ln-${info.kind}`];
@@ -136,6 +143,7 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
         // Formulas are drawn by math.ts; "*" or "_" in them aren't markdown.
         if (insideMath(state, node.from, node.to)) return false;
         const name = node.name;
+        if (name === "FencedCode") return false;
         const isActive = active.has(state.doc.lineAt(node.from).number);
         if (INLINE[name]) {
           deco.push(Decoration.mark({ class: INLINE[name] }).range(node.from, node.to));

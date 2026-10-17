@@ -3,10 +3,13 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { api, openUrl } from "../api";
-import { blockEnd, moveStep, removeBlock, type Lines } from "./blocks";
-import { boundaryKeys, outlinerKeys } from "./keys";
+import { blockEnd, moveStep, removeBlock, unitAt, unitStart, type Lines } from "./blocks";
+import { boundaryKeys, newItemKeys, outlinerKeys } from "./keys";
 import { livePreview } from "./livePreview";
+import { codeBlocks } from "./code";
+import { codeLanguages } from "./languages";
 import { math } from "./math";
+import { tablesExt } from "./table";
 
 export interface DocEditor {
   view: EditorView;
@@ -32,6 +35,9 @@ export interface Options {
    *  removed again if it is left untouched. */
   seed: string;
   placeholder: string;
+  /** Enter after a plain line, heading or empty line starts this item
+   *  ("- [ ] " in days); without it, such an Enter gives a plain line. */
+  newItem?: string;
   /** Arrow off the first/last line; return true if focus moved. */
   onLeave?: (dir: -1 | 1) => boolean;
   /** Alt+Up on the first / Alt+Down on the last item: take `block` into the
@@ -40,6 +46,7 @@ export interface Options {
 }
 
 const SAVE_DELAY = 400;
+const FENCE_LINE = /^\s*(`{3,}|~{3,})/;
 
 // Through CodeMirror's theme: its base theme outranks plain CSS for these
 // (monospace font, a thin black cursor that vanishes on dark backgrounds).
@@ -127,9 +134,19 @@ export function createEditor(o: Options): DocEditor {
     const sel = view.state.selection.main;
     const line = view.state.doc.lineAt(sel.head);
     const lines = view.state.doc.toString().split("\n");
-    const i = line.number - 1;
-    if (lines[i].trim() === "") return false;
     const col = sel.head - line.from;
+    // Inside code: move the code line, within its block.
+    const u = unitAt(lines, line.number - 1);
+    if (u && FENCE_LINE.test(lines[u[0]]) && line.number - 1 > u[0] && line.number - 1 < u[1]) {
+      const a = line.number - 1;
+      const b = a + dir;
+      if (b <= u[0] || b >= u[1]) return true;
+      [lines[a], lines[b]] = [lines[b], lines[a]];
+      setText(view, lines.join("\n"), offsetOf(lines, b, col));
+      return true;
+    }
+    const i = unitStart(lines, line.number - 1);
+    if (lines[i].trim() === "") return false;
     const r = moveStep(lines, i, dir);
     if (r === "out") {
       const j = blockEnd(lines, i);
@@ -163,9 +180,12 @@ export function createEditor(o: Options): DocEditor {
         drawSelection(),
         history(),
         EditorView.lineWrapping,
-        markdown({ base: markdownLanguage }),
+        markdown({ base: markdownLanguage, codeLanguages }),
         livePreview(openUrl),
         math,
+        codeBlocks,
+        tablesExt,
+        o.newItem ? newItemKeys(o.newItem) : [],
         outlinerKeys,
         keymap.of([
           { key: "Alt-ArrowUp", run: (v) => moveKey(v, -1) },

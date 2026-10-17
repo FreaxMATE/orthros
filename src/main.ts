@@ -60,6 +60,7 @@ async function buildStream() {
         name: `days/${date}`,
         doc: contents[i],
         seed: DAY_SEED,
+        newItem: DAY_SEED,
         placeholder: date === t ? "What matters today?" : date > t ? "Plan ahead…" : "Nothing written",
         onLeave: (dir) => {
           const next = stream[index + dir];

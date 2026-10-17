@@ -53,6 +53,7 @@ xattr -dr com.apple.quarantine /Applications/Orthros.app
 - **One column of days.** Tomorrow, today and the days before, so you can plan the evening before.
 - **Later.** A separate list for ideas and someday tasks, out of today's way.
 - **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
+- **Tables and code.** Markdown tables show as a clean grid; Tab moves between cells and the columns line up by themselves. Fenced code blocks are highlighted for over 140 languages, with a copy button.
 - **LaTeX math.** `$\alpha^2$` inside a sentence, `$$...$$` for an equation of its own, typeset with KaTeX. Click a formula to edit its source.
 - **Quick capture.** A shortcut from anywhere opens a small popup: type, Enter, done.
 - **Plain files.** Every day is a `.md` file you can grep, back up or open in any editor.
@@ -126,9 +127,12 @@ services.orthros-server.enable = true;   # 127.0.0.1:8787, token in /var/lib/ort
 
 | Key | Action |
 |---|---|
-| `Enter` / `Tab` / `Shift-Tab` | new item, indent, outdent |
+| `Enter` / `Tab` / `Shift-Tab` | new task (in a day, after any line), indent, outdent |
 | `Ctrl-Enter` | tick or untick; makes a line a task |
 | `[] ` at the start of a line | becomes a task |
+| `Shift-Enter` | a new line without a checkbox; under a task it belongs to the task (a note, a table, code) |
+| `Backspace` on a new empty task | makes it a plain line |
+| ```` ``` ```` or `\|` on a new empty item | starts a code block or table under the item above |
 | `Alt-Up` / `Alt-Down` | move an item (with its sub-items); past the first or last item, into the next day |
 | drag the ⋮⋮ grip (shows on hover) | move an item to another place, another day, or onto the Later tab |
 | `Ctrl-1` … `Ctrl-4` | Today, Later, Days, Search |
