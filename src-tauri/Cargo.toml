@@ -36,3 +36,4 @@ tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
+glib = "0.18"

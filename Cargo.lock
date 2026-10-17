@@ -2698,6 +2698,7 @@ version = "0.3.0"
 dependencies = [
  "axum",
  "dirs 6.0.0",
+ "glib",
  "notify",
  "orthros-core",
  "orthros-server",

@@ -203,7 +203,38 @@ fn connect_command() -> Option<i32> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Linux: settings that have to be in place before GTK and WebKit start.
+#[cfg(target_os = "linux")]
+fn prepare_linux() {
+    // WebKitGTK's DMA-BUF renderer fails on some GPU setups (NVIDIA, and
+    // Flatpak when its GL driver doesn't match the system's): the window stays
+    // blank or the app aborts with "Could not create default EGL display:
+    // EGL_BAD_PARAMETER". A text app doesn't need it. Setting the variable
+    // yourself (even to 0) keeps your choice.
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: called first thing in main, before any other thread exists.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
+    // The tray library warns on every start that it is deprecated in favour
+    // of a successor that Tauri doesn't use yet. It works fine; drop the noise.
+    glib::log_set_writer_func(|level, fields| {
+        if is_tray_deprecation(fields) {
+            glib::LogWriterOutput::Handled
+        } else {
+            glib::log_writer_default(level, fields)
+        }
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn is_tray_deprecation(fields: &[glib::LogField<'_>]) -> bool {
+    let field = |key: &str| fields.iter().find(|f| f.key() == key).and_then(|f| f.value_str());
+    field("GLIB_DOMAIN") == Some("libayatana-appindicator") && field("MESSAGE").is_some_and(|m| m.contains("deprecated"))
+}
+
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    prepare_linux();
     if let Some(code) = connect_command() {
         std::process::exit(code);
     }
