@@ -3,6 +3,9 @@
 // typeset until the cursor touches it; then its source shows for editing.
 // Copying copies the source, since the document itself stays markdown.
 //
+// \(inline\) and \[display\] (how ChatGPT and LaTeX write them) work too,
+// and pasted text is converted to the dollar form, so files stay in one style.
+//
 // A lone dollar stays text ("5$", "$5 and $10"), following pandoc's rule: the
 // opening $ is followed by a non-space, the closing $ follows a non-space and
 // isn't followed by a digit.
@@ -25,7 +28,7 @@ const CODE = new Set(["InlineCode", "FencedCode", "CodeBlock"]);
 /** Every formula in the document, outside code. */
 export function findMath(state: EditorState): MathRange[] {
   const text = state.doc.toString();
-  if (!text.includes("$")) return [];
+  if (!/\$|\\[([]/.test(text)) return [];
   const code: [number, number][] = [];
   syntaxTree(state).iterate({
     enter: (n) => {
@@ -41,6 +44,18 @@ export function findMath(state: EditorState): MathRange[] {
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (c === "\\") {
+      const kind = text[i + 1];
+      if ((kind === "(" || kind === "[") && !inCode(i)) {
+        const close = kind === "(" ? "\\)" : "\\]";
+        const end = text.indexOf(close, i + 2);
+        const tex = end < 0 ? "" : text.slice(i + 2, end);
+        const ok = kind === "(" ? !tex.includes("\n") : !/\n\s*\n/.test(tex);
+        if (end > 0 && tex.trim() && ok) {
+          found.push({ from: i, to: end + 2, tex, display: kind === "[" });
+          i = end + 1;
+          continue;
+        }
+      }
       i++;
       continue;
     }
@@ -133,4 +148,24 @@ export function insideMath(state: EditorState, from: number, to: number) {
   return !!f && f.ranges.some((m) => from >= m.from && to <= m.to);
 }
 
-export const math = [mathField, EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing))];
+/** \(x\) to $x$ and \[x\] to $$x$$, outside code. */
+export function dollarMath(text: string): string {
+  if (!/\\[([]/.test(text)) return text;
+  // Code (fenced blocks and inline spans) stays as it is: odd parts below.
+  const parts = text.split(/(^[ \t]*(?:```|~~~)[^\n]*\n[\s\S]*?^[ \t]*(?:```|~~~)[ \t]*$|`[^`\n]*`)/m);
+  return parts
+    .map((part, k) =>
+      k % 2
+        ? part
+        : part
+            .replace(/\\\[([\s\S]+?)\\\]/g, (all, tex: string) => (/\n\s*\n/.test(tex) ? all : `$$${tex}$$`))
+            .replace(/\\\(([^\n]+?)\\\)/g, (_, tex: string) => `$${tex.trim()}$`),
+    )
+    .join("");
+}
+
+export const math = [
+  mathField,
+  EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing)),
+  EditorView.clipboardInputFilter.of((text) => dollarMath(text)),
+];

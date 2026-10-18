@@ -54,7 +54,7 @@ xattr -dr com.apple.quarantine /Applications/Orthros.app
 - **Later.** A separate list for ideas and someday tasks, out of today's way.
 - **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
 - **Tables and code.** Markdown tables show as a clean grid; Tab moves between cells and the columns line up by themselves. Fenced code blocks are highlighted for over 140 languages, with a copy button.
-- **LaTeX math.** `$\alpha^2$` inside a sentence, `$$...$$` for an equation of its own, typeset with KaTeX. Click a formula to edit its source.
+- **LaTeX math.** `$\alpha^2$` inside a sentence, `$$...$$` for an equation of its own, typeset with KaTeX. Click a formula to edit its source. Math pasted from ChatGPT (`\(...\)`, `\[...\]`) works too.
 - **Quick capture.** A shortcut from anywhere opens a small popup: type, Enter, done.
 - **Plain files.** Every day is a `.md` file you can grep, back up or open in any editor.
 - **Sync, if you want it.** Offline-first, with your own server. Edits from several devices merge line by line.
