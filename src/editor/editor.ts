@@ -8,6 +8,7 @@ import { boundaryKeys, newItemKeys, outlinerKeys } from "./keys";
 import { livePreview } from "./livePreview";
 import { codeBlocks } from "./code";
 import { codeLanguages } from "./languages";
+import { linkCards } from "./linkCard";
 import { math } from "./math";
 import { tablesExt } from "./table";
 
@@ -20,6 +21,8 @@ export interface DocEditor {
   remote(content: string): void;
   focusLine(line: number): void;
   focusEdge(edge: "start" | "end"): void;
+  /** What Alt+Up / Alt+Down do (the editing bar on the phone). */
+  move(dir: -1 | 1): void;
   /** The document as lines (an empty document is one empty line). */
   lines(): Lines;
   /** Replace the document with `lines` as one undoable edit, cursor at the
@@ -183,6 +186,7 @@ export function createEditor(o: Options): DocEditor {
         markdown({ base: markdownLanguage, codeLanguages }),
         livePreview(openUrl),
         math,
+        linkCards,
         codeBlocks,
         tablesExt,
         o.newItem ? newItemKeys(o.newItem) : [],
@@ -232,6 +236,9 @@ export function createEditor(o: Options): DocEditor {
     },
     setLines(lines, cursor, col) {
       setText(view, lines.join("\n"), cursor === undefined ? undefined : offsetOf(lines, cursor, col));
+    },
+    move(dir) {
+      moveKey(view, dir);
     },
     focusEdge(edge) {
       view.focus();

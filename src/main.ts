@@ -7,13 +7,15 @@ import "./tokens.css";
 import "./style.css";
 import { wireThemeSwitch } from "./theme";
 
-import { api, type Hit, type SyncStatus } from "./api";
+import { api, isMobile, type Hit, type NoteInfo, type SyncStatus } from "./api";
 import { addDays, meta, title, today } from "./dates";
 import { insertBlock } from "./editor/blocks";
 import { createEditor, type DocEditor } from "./editor/editor";
 import { enableDrag } from "./drag";
+import { mountEditBar } from "./editbar";
+import { mountSyncPopover } from "./syncPopover";
 
-type View = "today" | "later" | "days" | "search";
+type View = "today" | "notes" | "map" | "days" | "search";
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const DAY_SEED = "- [ ] ";
@@ -93,9 +95,17 @@ function scrollToDay(date: string, line?: number) {
   if (line !== undefined) stream[i].focusLine(line);
 }
 
-// ---------------------------------------------------------------- later
+// ---------------------------------------------------------------- notes
+// The Notes tab is either the list or one open note. Later is a note too,
+// always first; its editor lives as long as the app (it is a drop target).
 
 let later: DocEditor;
+/** The open note other than Later, if any. */
+let note: DocEditor | undefined;
+/** What the Notes tab shows: "later", "notes/<slug>" or the list. */
+let opened: string | null = null;
+let notes: NoteInfo[] = [];
+let pins = "";
 
 async function buildLater() {
   later = createEditor({
@@ -107,12 +117,153 @@ async function buildLater() {
   });
 }
 
+const pinned = () => new Set(pins.split("\n").map((l) => l.trim()).filter(Boolean));
+
+async function togglePin(name: string) {
+  const set = pinned();
+  if (!set.delete(name)) set.add(name);
+  const next = [...set].map((n) => n + "\n").join("");
+  pins = await api.save("pins", next, pins);
+  void renderNotes();
+}
+
+function noteTitle(name: string) {
+  return name === "later" ? "Later" : (notes.find((n) => n.name === name)?.title ?? name.slice(6));
+}
+
+async function renderNotes() {
+  [notes, pins] = await Promise.all([api.notes(), api.read("pins")]);
+  const set = pinned();
+  const sorted = [...notes.filter((n) => set.has(n.name)), ...notes.filter((n) => !set.has(n.name))];
+
+  const list = $("#notes-list");
+  list.replaceChildren(newNoteItem(), noteItem("later", "Later", "later", null));
+  for (const n of sorted) {
+    const date = n.modified ? new Date(n.modified * 1000).toLocaleDateString("sv-SE") : "";
+    list.append(noteItem(n.name, n.title, date, set.has(n.name)));
+  }
+}
+
+function noteItem(name: string, text: string, label: string, isPinned: boolean | null) {
+  const li = document.createElement("li");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.innerHTML = `<span class="mono"></span><span></span>`;
+  b.children[0].textContent = label;
+  b.children[1].textContent = text;
+  b.onclick = () => void openNote(name);
+  li.append(b);
+  if (isPinned !== null) {
+    const pin = document.createElement("button");
+    pin.type = "button";
+    pin.className = "pin";
+    pin.textContent = isPinned ? "pinned" : "pin";
+    pin.setAttribute("aria-pressed", String(isPinned));
+    pin.setAttribute("aria-label", `${isPinned ? "Unpin" : "Pin"} ${text}`);
+    pin.onclick = () => void togglePin(name);
+    li.append(pin);
+  }
+  return li;
+}
+
+/** "+ New note", which turns into a name field. */
+function newNoteItem() {
+  const li = document.createElement("li");
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "new-note";
+  b.innerHTML = `<span class="mono">+</span><span>New note</span>`;
+  b.onclick = () => {
+    const input = document.createElement("input");
+    input.className = "new-note-input";
+    input.placeholder = "Name of the note";
+    input.setAttribute("aria-label", "Name of the new note");
+    input.onkeydown = (e) => {
+      if (e.key === "Escape") li.replaceWith(newNoteItem());
+      if (e.key !== "Enter" || !input.value.trim()) return;
+      e.preventDefault();
+      void createNote(input.value.trim());
+    };
+    input.onblur = () => {
+      if (!input.value.trim()) li.replaceWith(newNoteItem());
+    };
+    li.replaceChildren(input);
+    input.focus();
+  };
+  li.append(b);
+  return li;
+}
+
+/** "Trip ideas!" -> "trip-ideas"; a valid name in core's `is_slug` sense. */
+function slugify(title: string) {
+  const s = title
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
+  return s || "note";
+}
+
+async function createNote(title: string) {
+  const taken = new Set((await api.notes()).map((n) => n.name));
+  const slug = slugify(title);
+  let name = `notes/${slug}`;
+  for (let i = 2; taken.has(name); i++) name = `notes/${slug}-${i}`;
+  await api.save(name, `# ${title}\n\n- `, "");
+  await openNote(name);
+}
+
+async function openNote(name: string, line?: number) {
+  if (note && note.name !== name) {
+    await note.flush();
+    note.view.destroy();
+    note = undefined;
+  }
+  if (name !== "later" && !note) {
+    note = createEditor({ parent: $("#note-editor"), name, doc: await api.read(name), seed: "- ", placeholder: "Write anything" });
+  }
+  opened = name;
+  showNotes();
+  const editor = name === "later" ? later : note!;
+  if (line !== undefined) editor.focusLine(line);
+  else if (!editor.view.hasFocus) editor.focusEdge("end");
+}
+
+async function closeNote() {
+  opened = null;
+  if (note) {
+    await note.flush();
+    note.view.destroy();
+    note = undefined;
+  }
+  showNotes();
+}
+
+/** Show the Notes tab's current state: the list or the open note. */
+function showNotes() {
+  $("#notes-index").hidden = opened !== null;
+  $("#note-later").hidden = opened !== "later";
+  $("#note-other").hidden = opened === null || opened === "later";
+  if (opened === null) void renderNotes();
+}
+
 // ---------------------------------------------------------------- days list
 
 async function renderDays() {
-  const list = $("#days-list");
-  list.replaceChildren();
+  await fillDays($("#days-list"));
+}
+
+/** The list of days, in `list`. Also the phone's empty Search. */
+async function fillDays(list: HTMLElement, isCurrent: () => boolean = () => true) {
   const days = await api.days();
+  if (!isCurrent()) return;
+  list.replaceChildren();
   if (!days.length) {
     const li = document.createElement("li");
     li.className = "muted";
@@ -135,6 +286,8 @@ async function renderDays() {
 // ---------------------------------------------------------------- search
 
 let searchSeq = 0;
+/** The phone layout: the phone app, or any narrow window (see style.css). */
+const compact = window.matchMedia("(max-width: 600px)");
 
 /** Strip list/heading markers and inline syntax for a readable snippet. */
 function snippet(text: string) {
@@ -146,10 +299,13 @@ function snippet(text: string) {
 
 async function runSearch(query: string) {
   const seq = ++searchSeq;
-  await Promise.all([later.flush(), ...stream.map((e) => e.flush())]);
-  const hits = await api.search(query);
-  if (seq !== searchSeq) return;
+  await flushAll();
   const list = $("#search-results");
+  // The phone has no Days tab: an empty search lists the days instead.
+  if (!query.trim() && compact.matches) return fillDays(list, () => seq === searchSeq);
+  const [hits, all] = await Promise.all([api.search(query), api.notes()]);
+  if (seq !== searchSeq) return;
+  notes = all;
   list.replaceChildren();
   if (query.trim() && !hits.length) {
     const li = document.createElement("li");
@@ -165,15 +321,13 @@ function hitItem(h: Hit) {
   const b = document.createElement("button");
   b.type = "button";
   b.innerHTML = `<span class="mono"></span><span></span>`;
-  b.children[0].textContent = h.doc === "later" ? "later" : h.doc.slice(5);
+  const isDay = h.doc.startsWith("days/");
+  b.children[0].textContent = isDay ? h.doc.slice(5) : noteTitle(h.doc).toLowerCase();
   b.children[1].textContent = snippet(h.text);
   b.onclick = () => {
-    if (h.doc === "later") {
-      show("later");
-      later.focusLine(h.line);
-    } else {
-      scrollToDay(h.doc.slice(5), h.line);
-    }
+    if (isDay) return scrollToDay(h.doc.slice(5), h.line);
+    show("notes");
+    void openNote(h.doc, h.line);
   };
   li.append(b);
   return li;
@@ -183,9 +337,24 @@ function hitItem(h: Hit) {
 // Sync, quick capture or another editor changed a file.
 
 let rebuild: number | undefined;
+let relist: number | undefined;
+let remap: number | undefined;
 
 function onDocChanged({ name, content }: { name: string; content: string }) {
+  // Places live in notes and Later: keep a visible map current.
+  if ((name === "later" || name.startsWith("notes/")) && map && current() === "map") {
+    window.clearTimeout(remap);
+    remap = window.setTimeout(() => void map?.then((m) => m.refresh()), 300);
+  }
   if (name === "later") return later.remote(content);
+  if (name === "pins" || name.startsWith("notes/")) {
+    if (note?.name === name) note.remote(content);
+    if (opened === null && !$("#view-notes").hidden) {
+      window.clearTimeout(relist);
+      relist = window.setTimeout(() => void renderNotes(), 300);
+    }
+    return;
+  }
   const editor = stream.find((e) => e.name === name);
   if (editor) return editor.remote(content);
   // A day we don't show yet (written on another device): rebuild the stream.
@@ -197,6 +366,8 @@ function onDocChanged({ name, content }: { name: string; content: string }) {
 
 // ---------------------------------------------------------------- sync status
 // Always a dot; words only when something needs attention.
+
+let syncPanel: ReturnType<typeof mountSyncPopover> | undefined;
 
 function clock(unix: number) {
   return new Date(unix * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -238,15 +409,51 @@ function renderSync(s: SyncStatus) {
     error: s.message ?? "Sync failed.",
   };
   $("#sync-text").textContent = text[s.state];
-  el.title = `${tip[s.state]}${s.state === "off" ? "" : " Click to sync now."}`;
+  el.title = tip[s.state];
   el.setAttribute("aria-label", tip[s.state]);
+  syncPanel?.setStatus(tip[s.state]);
 }
 
 // ---------------------------------------------------------------- views
 
-const views: View[] = ["today", "later", "days", "search"];
+const views: View[] = ["today", "notes", "map", "days", "search"];
+
+// ---------------------------------------------------------------- map
+// Loaded on first visit: MapLibre is large and most days don't need it.
+
+let map: Promise<{ refresh(): Promise<void>; resize(): void }> | undefined;
+
+async function showMap() {
+  if (!map) {
+    map = import("./map/map").then(({ mountMap }) =>
+      mountMap($("#map"), {
+        openDoc: (name, line) => {
+          show("notes");
+          void openNote(name, line);
+        },
+      }),
+    );
+  }
+  try {
+    (await map).resize();
+  } catch (e) {
+    // Say why instead of an empty page (no WebGL, a broken style...); the
+    // next visit tries again.
+    map = undefined;
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = `The map could not start: ${e instanceof Error ? e.message : String(e)}`;
+    $("#map").replaceChildren(p);
+  }
+}
+
+function current(): View {
+  return views.find((v) => !$(`#view-${v}`).hidden) ?? "today";
+}
 
 function show(v: View) {
+  // The Notes tab again, while on a note: back to the list.
+  if (v === "notes" && current() === "notes" && opened !== null) void closeNote();
   for (const name of views) {
     $(`#view-${name}`).hidden = name !== v;
     const tab = $(`.tabs [data-view="${name}"]`);
@@ -254,24 +461,46 @@ function show(v: View) {
     else tab.removeAttribute("aria-current");
   }
   if (v === "days") void renderDays();
-  if (v === "search") $<HTMLInputElement>("#search-input").focus();
-  if (v === "later" && !later.view.hasFocus) later.focusEdge("end");
+  if (v === "search") {
+    const input = $<HTMLInputElement>("#search-input");
+    input.focus();
+    if (!input.value) void runSearch("");
+  }
+  if (v === "notes") showNotes();
+  if (v === "map") void showMap();
+}
+
+/** Write every editor's pending changes. */
+function flushAll() {
+  return Promise.all([later.flush(), note?.flush(), ...stream.map((e) => e.flush())]);
 }
 
 function wire() {
   wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
   enableDrag({
-    editors: () => ($("#view-later").hidden ? stream : [later]),
+    editors: () => {
+      if (current() === "today") return stream;
+      if (current() !== "notes") return [];
+      return opened === "later" ? [later] : note ? [note] : [];
+    },
+    // Dropped on the Notes tab: into Later.
     toLater: (block) => {
       const lines = later.lines();
       later.setLines(insertBlock(lines, lines.length, block).lines);
     },
-    laterTab: $(`.tabs [data-view="later"]`),
+    laterTab: $(`.tabs [data-view="notes"]`),
   });
-  $<HTMLButtonElement>("#sync").onclick = () => {
-    void api.syncNow();
-    window.setTimeout(() => void api.syncStatus().then(showSync), 1500);
-  };
+  document.querySelectorAll<HTMLButtonElement>("#view-notes .back").forEach((b) => {
+    b.onclick = () => void closeNote();
+  });
+  syncPanel = mountSyncPopover({
+    button: $<HTMLButtonElement>("#sync"),
+    syncNow: () => {
+      void api.syncNow();
+      window.setTimeout(() => void api.syncStatus().then(showSync), 1500);
+    },
+  });
+  if (isMobile) mountEditBar(() => [later, note, ...stream].find((e) => e?.view.hasFocus));
   void api.onDocChanged(onDocChanged);
   void api.onSyncStatus(showSync);
   void api.syncStatus().then(showSync);
@@ -299,14 +528,10 @@ function wire() {
   });
 
   // Save before the window goes away; rebuild after midnight.
-  const flushAll = () => {
-    void later.flush();
-    stream.forEach((e) => void e.flush());
-  };
-  window.addEventListener("pagehide", flushAll);
+  window.addEventListener("pagehide", () => void flushAll());
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) void api.syncStatus().then(showSync);
-    if (document.hidden) flushAll();
+    if (document.hidden) void flushAll();
     else if (today() !== streamDate) void buildStream();
   });
   window.addEventListener("focus", () => {
@@ -316,7 +541,17 @@ function wire() {
   });
 }
 
+/** `html.compact` is the phone layout (CSS), `html.is-mobile` the phone app. */
+function markLayout() {
+  const root = document.documentElement;
+  root.classList.toggle("is-mobile", isMobile);
+  const set = () => root.classList.toggle("compact", isMobile || compact.matches);
+  set();
+  compact.addEventListener("change", set);
+}
+
 async function start() {
+  markLayout();
   await Promise.all([buildStream(), buildLater()]);
   wire();
 }

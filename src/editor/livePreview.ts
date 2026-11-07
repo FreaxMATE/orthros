@@ -150,13 +150,13 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
         } else if (name === "Link") {
           const url = node.node.getChild("URL");
           const href = url ? state.sliceDoc(url.from, url.to) : "";
-          deco.push(linkMark(href, isActive).range(node.from, node.to));
+          deco.push(linkMark(href).range(node.from, node.to));
         } else if (name === "URL") {
           if (node.node.parent?.name === "Link") {
             deco.push((isActive ? dim : hidden).range(node.from, node.to));
           } else {
             // Bare autolink: the text is the address.
-            deco.push(linkMark(state.sliceDoc(node.from, node.to), isActive).range(node.from, node.to));
+            deco.push(linkMark(state.sliceDoc(node.from, node.to)).range(node.from, node.to));
           }
           return false;
         } else if (MARKS.has(name)) {
@@ -169,10 +169,10 @@ function build(view: EditorView): { decorations: DecorationSet; atomic: Decorati
   return { decorations: Decoration.set(deco, true), atomic: atomic.finish() };
 }
 
-function linkMark(href: string, active: boolean) {
-  // Only inactive links carry the address: a click there opens it, while on
-  // the line being edited a click just places the cursor.
-  return Decoration.mark({ class: "cm-link", attributes: active ? {} : { "data-href": href } });
+function linkMark(href: string) {
+  // A click on a link always opens it, also on the line being edited (its
+  // text is changed with the keyboard, or by clicking beside it).
+  return Decoration.mark({ class: "cm-link", attributes: { "data-href": href } });
 }
 
 export function toggleTask(state: EditorState, checkPos: number) {

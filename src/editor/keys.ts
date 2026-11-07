@@ -34,13 +34,13 @@ function selectedLines(state: EditorState): Line[] {
   return [...seen.values()];
 }
 
-const indent: Command = (view) => {
+export const indent: Command = (view) => {
   const changes = selectedLines(view.state).map((l) => ({ from: l.from, insert: UNIT }));
   view.dispatch(view.state.update({ changes, userEvent: "input.indent" }));
   return true;
 };
 
-const outdent: Command = (view) => {
+export const outdent: Command = (view) => {
   const changes: ChangeSpec[] = [];
   for (const l of selectedLines(view.state)) {
     const n = Math.min(/^ */.exec(l.text)![0].length, UNIT.length);
@@ -50,7 +50,7 @@ const outdent: Command = (view) => {
   return true;
 };
 
-const toggle: Command = (view) => {
+export const toggle: Command = (view) => {
   const changes: ChangeSpec[] = [];
   for (const l of selectedLines(view.state)) {
     const info = lineInfo(l.text);

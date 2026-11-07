@@ -148,8 +148,12 @@ jobs:
           name: ${{ matrix.name }}
           path: out/${{ matrix.name }}
 
+  android:
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
   attach:
-    needs: [draft, flatpak, server]
+    needs: [draft, flatpak, server, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -158,7 +162,7 @@ jobs:
         with:
           path: assets
           merge-multiple: true
-          pattern: "{flatpak,orthros-server-*}"
+          pattern: "{flatpak,orthros-server-*,android}"
       - name: Upload to the draft release
         env:
           GH_TOKEN: ${{ github.token }}

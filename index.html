@@ -2,21 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Orthros</title>
   </head>
   <body>
     <header class="top" data-tauri-drag-region>
       <nav class="tabs" aria-label="Views">
         <button type="button" data-view="today" aria-current="page">Today</button>
-        <button type="button" data-view="later">Later</button>
-        <button type="button" data-view="days">Days</button>
+        <button type="button" data-view="notes">Notes</button>
+        <button type="button" data-view="map">Map</button>
+        <button type="button" data-view="days" class="desktop-only">Days</button>
         <button type="button" data-view="search">Search</button>
       </nav>
       <div class="top-right">
-        <button type="button" class="sync" id="sync" data-state="off">
-          <span class="sync-dot" aria-hidden="true"></span><span id="sync-text"></span>
-        </button>
+        <div class="sync-wrap">
+          <button type="button" class="sync" id="sync" data-state="off" aria-haspopup="dialog" aria-expanded="false">
+            <span class="sync-dot" aria-hidden="true"></span><span id="sync-text"></span>
+          </button>
+        </div>
         <button type="button" class="theme-switch" id="theme-switch">system</button>
       </div>
     </header>
@@ -24,12 +27,26 @@
     <main>
       <section id="view-today" class="view" aria-label="Days"></section>
 
-      <section id="view-later" class="view" aria-label="Later" hidden>
-        <div class="day">
+      <section id="view-notes" class="view" aria-label="Notes" hidden>
+        <div id="notes-index">
+          <h1 class="day-title">Notes</h1>
+          <ul id="notes-list" class="plain-list notes-list"></ul>
+        </div>
+        <div id="note-later" class="day" hidden>
+          <button type="button" class="back">← Notes</button>
           <div class="day-meta">not today, not forgotten</div>
           <h1 class="day-title">Later</h1>
           <div id="later-editor" class="doc"></div>
         </div>
+        <div id="note-other" class="day" hidden>
+          <button type="button" class="back">← Notes</button>
+          <div id="note-editor" class="doc"></div>
+        </div>
+      </section>
+
+      <section id="view-map" class="view" aria-label="Map" hidden>
+        <h1 class="day-title">Map</h1>
+        <div id="map"></div>
       </section>
 
       <section id="view-days" class="view" aria-label="All days" hidden>

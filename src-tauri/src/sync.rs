@@ -23,6 +23,8 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+#[cfg(mobile)]
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use orthros_core::protocol::{Changes, Put, PutResult, Wait};
@@ -95,8 +97,26 @@ pub fn connect(server: &str, token: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// Mobile has no config dir: the app's data dir holds sync.json, set once at setup.
+#[cfg(mobile)]
+static CONFIG: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(mobile)]
+pub fn set_config_path(p: PathBuf) {
+    let _ = CONFIG.set(p);
+}
+
 pub fn config_path() -> PathBuf {
+    #[cfg(mobile)]
+    if let Some(p) = CONFIG.get() {
+        return p.clone();
+    }
     dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("orthros").join("sync.json")
+}
+
+/// The configured (server, token), None when sync isn't set up or the config is unusable.
+pub fn info() -> Option<(String, String)> {
+    load_config().ok().flatten().map(|c| (c.server, c.token))
 }
 
 fn load_config() -> Result<Option<Config>, String> {

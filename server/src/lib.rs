@@ -1,5 +1,5 @@
 //! orthros-server: the sync hub. The space is kept as the same plain files
-//! the app writes (days/YYYY-MM-DD.md, later.md), plus `.index.json` with the
+//! the app writes (days/YYYY-MM-DD.md, later.md, pins.md, notes/<slug>.md), plus `.index.json` with the
 //! revision of every document. Protocol: see orthros_core::protocol.
 //!
 //!   orthros-server --data /var/lib/orthros --listen 127.0.0.1:8444 \
@@ -41,13 +41,18 @@ pub struct Space {
 impl Space {
     pub fn open(root: PathBuf) -> io::Result<Self> {
         fs::create_dir_all(root.join("days"))?;
+        fs::create_dir_all(root.join("notes"))?;
         let index = match fs::read(root.join(".index.json")) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(io::Error::other)?,
             Err(e) if e.kind() == io::ErrorKind::NotFound => Self::scan(&root)?,
             Err(e) => return Err(e),
         };
         let rev = tokio::sync::watch::Sender::new(index.rev);
-        let space = Self { root, index: Mutex::new(index), rev };
+        let space = Self {
+            root,
+            index: Mutex::new(index),
+            rev,
+        };
         space.save(&space.index.lock().unwrap())?;
         Ok(space)
     }
@@ -55,12 +60,28 @@ impl Space {
     /// First start on an existing folder: every file gets a revision.
     fn scan(root: &Path) -> io::Result<Index> {
         let mut names = vec![];
-        if root.join("later.md").exists() {
-            names.push("later".to_string());
+        for n in ["later", "pins"] {
+            if root.join(format!("{n}.md")).exists() {
+                names.push(n.to_string());
+            }
+        }
+        if let Ok(rd) = fs::read_dir(root.join("notes")) {
+            for e in rd.flatten() {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if let Some(slug) = name
+                    .strip_suffix(".md")
+                    .filter(|s| orthros_core::is_slug(s))
+                {
+                    names.push(format!("notes/{slug}"));
+                }
+            }
         }
         for e in fs::read_dir(root.join("days"))? {
             let name = e?.file_name().to_string_lossy().into_owned();
-            if let Some(date) = name.strip_suffix(".md").filter(|d| orthros_core::is_date(d)) {
+            if let Some(date) = name
+                .strip_suffix(".md")
+                .filter(|d| orthros_core::is_date(d))
+            {
                 names.push(format!("days/{date}"));
             }
         }
@@ -73,7 +94,10 @@ impl Space {
     }
 
     fn save(&self, index: &Index) -> io::Result<()> {
-        write_atomic(&self.root.join(".index.json"), &serde_json::to_vec_pretty(index).map_err(io::Error::other)?)
+        write_atomic(
+            &self.root.join(".index.json"),
+            &serde_json::to_vec_pretty(index).map_err(io::Error::other)?,
+        )
     }
 
     fn read(&self, name: &str) -> io::Result<String> {
@@ -113,9 +137,16 @@ async fn changes(State(space): State<Shared>, Query(q): Query<Since>) -> HttpRes
     let index = space.index.lock().unwrap();
     let mut docs = vec![];
     for (name, &rev) in index.docs.iter().filter(|(_, &r)| r > q.since) {
-        docs.push(RemoteDoc { name: name.clone(), rev, content: space.read(name).map_err(internal)? });
+        docs.push(RemoteDoc {
+            name: name.clone(),
+            rev,
+            content: space.read(name).map_err(internal)?,
+        });
     }
-    Ok(Json(Changes { rev: index.rev, docs }))
+    Ok(Json(Changes {
+        rev: index.rev,
+        docs,
+    }))
 }
 
 /// Long poll: return once the revision is past `since`, or after a while
@@ -129,14 +160,24 @@ async fn wait(State(space): State<Shared>, Query(q): Query<Since>) -> Json<Wait>
 
 const WAIT: std::time::Duration = std::time::Duration::from_secs(50);
 
-async fn put_doc(State(space): State<Shared>, UrlPath(name): UrlPath<String>, Json(body): Json<Put>) -> HttpResult<Json<PutResult>> {
-    let path = doc_path(&space.root, &name).ok_or((StatusCode::BAD_REQUEST, format!("invalid document name: {name}")))?;
+async fn put_doc(
+    State(space): State<Shared>,
+    UrlPath(name): UrlPath<String>,
+    Json(body): Json<Put>,
+) -> HttpResult<Json<PutResult>> {
+    let path = doc_path(&space.root, &name).ok_or((
+        StatusCode::BAD_REQUEST,
+        format!("invalid document name: {name}"),
+    ))?;
     let mut index = space.index.lock().unwrap();
     let current = space.read(&name).map_err(internal)?;
     let doc_rev = index.docs.get(&name).copied().unwrap_or(0);
 
     if hash(&current) != body.base {
-        return Ok(Json(PutResult::Conflict { rev: doc_rev, current }));
+        return Ok(Json(PutResult::Conflict {
+            rev: doc_rev,
+            current,
+        }));
     }
     if body.content == current {
         return Ok(Json(PutResult::Ok { rev: doc_rev }));
@@ -162,7 +203,11 @@ fn same(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-async fn auth(State(token): State<Arc<String>>, req: Request, next: Next) -> Result<Response, StatusCode> {
+async fn auth(
+    State(token): State<Arc<String>>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let given = req
         .headers()
         .get("authorization")
@@ -195,12 +240,22 @@ mod tests {
     const TOKEN: &str = "0123456789abcdef";
 
     fn space() -> Shared {
-        let dir = std::env::temp_dir().join(format!("orthros-server-test-{}-{:?}", std::process::id(), std::thread::current().id()));
+        let dir = std::env::temp_dir().join(format!(
+            "orthros-server-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
         let _ = fs::remove_dir_all(&dir);
         Arc::new(Space::open(dir).unwrap())
     }
 
-    async fn call(app: &Router, method: &str, uri: &str, token: &str, body: Option<serde_json::Value>) -> (StatusCode, serde_json::Value) {
+    async fn call(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        token: &str,
+        body: Option<serde_json::Value>,
+    ) -> (StatusCode, serde_json::Value) {
         let req = Request::builder()
             .method(method)
             .uri(uri)
@@ -211,13 +266,19 @@ mod tests {
         let res = app.clone().oneshot(req).await.unwrap();
         let status = res.status();
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[tokio::test]
     async fn rejects_wrong_token() {
         let app = app(space(), TOKEN.into());
-        assert_eq!(call(&app, "GET", "/api/changes", "nope", None).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            call(&app, "GET", "/api/changes", "nope", None).await.0,
+            StatusCode::UNAUTHORIZED
+        );
     }
 
     #[tokio::test]
@@ -225,13 +286,27 @@ mod tests {
         let app = app(space(), TOKEN.into());
         let empty = hash("");
 
-        let (s, r) = call(&app, "PUT", "/api/doc/days/2026-10-15", TOKEN, Some(serde_json::json!({"base": empty, "content": "- [ ] a\n"}))).await;
+        let (s, r) = call(
+            &app,
+            "PUT",
+            "/api/doc/days/2026-10-15",
+            TOKEN,
+            Some(serde_json::json!({"base": empty, "content": "- [ ] a\n"})),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(r["status"], "ok");
         assert_eq!(r["rev"], 1);
 
         // A second device still thinks the day is empty: conflict, gets current.
-        let (_, r) = call(&app, "PUT", "/api/doc/days/2026-10-15", TOKEN, Some(serde_json::json!({"base": empty, "content": "- [ ] b\n"}))).await;
+        let (_, r) = call(
+            &app,
+            "PUT",
+            "/api/doc/days/2026-10-15",
+            TOKEN,
+            Some(serde_json::json!({"base": empty, "content": "- [ ] b\n"})),
+        )
+        .await;
         assert_eq!(r["status"], "conflict");
         assert_eq!(r["current"], "- [ ] a\n");
 
@@ -242,7 +317,14 @@ mod tests {
         assert_eq!(r["docs"].as_array().unwrap().len(), 0);
 
         // Delete: shows up as an empty document.
-        let (_, r) = call(&app, "PUT", "/api/doc/days/2026-10-15", TOKEN, Some(serde_json::json!({"base": hash("- [ ] a\n"), "content": ""}))).await;
+        let (_, r) = call(
+            &app,
+            "PUT",
+            "/api/doc/days/2026-10-15",
+            TOKEN,
+            Some(serde_json::json!({"base": hash("- [ ] a\n"), "content": ""})),
+        )
+        .await;
         assert_eq!(r["rev"], 2);
         let (_, r) = call(&app, "GET", "/api/changes?since=1", TOKEN, None).await;
         assert_eq!(r["docs"][0]["content"], "");
@@ -267,14 +349,53 @@ mod tests {
         assert!(!waiter.is_finished());
         let put = serde_json::json!({"base": hash("- x\n"), "content": "- y\n"});
         call(&app, "PUT", "/api/doc/later", TOKEN, Some(put)).await;
-        let (_, r) = tokio::time::timeout(std::time::Duration::from_secs(2), waiter).await.unwrap().unwrap();
+        let (_, r) = tokio::time::timeout(std::time::Duration::from_secs(2), waiter)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(r["rev"], 2);
     }
 
     #[tokio::test]
     async fn rejects_bad_names() {
         let app = app(space(), TOKEN.into());
-        let (s, _) = call(&app, "PUT", "/api/doc/../etc/passwd", TOKEN, Some(serde_json::json!({"base": hash(""), "content": "x"}))).await;
+        let (s, _) = call(
+            &app,
+            "PUT",
+            "/api/doc/../etc/passwd",
+            TOKEN,
+            Some(serde_json::json!({"base": hash(""), "content": "x"})),
+        )
+        .await;
         assert_ne!(s, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn notes_and_pins_sync() {
+        let space = space();
+        let app = app(space.clone(), TOKEN.into());
+        let put = serde_json::json!({"base": hash(""), "content": "# Trip\n\n- a\n"});
+        let (s, r) = call(&app, "PUT", "/api/doc/notes/trip-ideas", TOKEN, Some(put)).await;
+        assert_eq!(s, StatusCode::OK);
+        assert_eq!(r["status"], "ok");
+        let put = serde_json::json!({"base": hash(""), "content": "- notes/trip-ideas\n"});
+        assert_eq!(
+            call(&app, "PUT", "/api/doc/pins", TOKEN, Some(put)).await.0,
+            StatusCode::OK
+        );
+        assert_eq!(
+            fs::read_to_string(space.root.join("notes/trip-ideas.md")).unwrap(),
+            "# Trip\n\n- a\n"
+        );
+        let (_, r) = call(&app, "GET", "/api/changes?since=0", TOKEN, None).await;
+        assert_eq!(r["docs"][0]["name"], "notes/trip-ideas");
+
+        // A fresh index on an existing folder picks both up, and only valid slugs.
+        fs::write(space.root.join("notes/Bad Name.md"), "x").unwrap();
+        let index = Space::scan(&space.root).unwrap();
+        assert_eq!(
+            index.docs.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["notes/trip-ideas", "pins"]
+        );
     }
 }

@@ -23,8 +23,12 @@
     "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "1.8.0",
     "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-barcode-scanner": "2.5.3",
     "@tauri-apps/plugin-opener": "2.7.2",
-    "katex": "^0.16.47"
+    "katex": "^0.16.47",
+    "maplibre-gl": "6.15.0",
+    "opening_hours": "3.15.0",
+    "qrcode-generator": "2.0.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.3",

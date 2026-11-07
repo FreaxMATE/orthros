@@ -37,6 +37,7 @@ Download Orthros from the **[latest release](https://github.com/FreaxMATE/orthro
 | Debian, Ubuntu | `Orthros_*.deb` |
 | Fedora, openSUSE | `Orthros-*.rpm` |
 | Nix, NixOS | `nix run github:FreaxMATE/orthros` ([more](#nix-and-nixos)) |
+| Android (arm64) | `Orthros_*_arm64.apk` ([more](#android)) |
 
 <details>
 <summary>macOS says the app can't be opened</summary>
@@ -52,6 +53,9 @@ xattr -dr com.apple.quarantine /Applications/Orthros.app
 
 - **One column of days.** Tomorrow, today and the days before, so you can plan the evening before.
 - **Later.** A separate list for ideas and someday tasks, out of today's way.
+- **Notes.** Trip ideas, life goals, books to read: a short list of notes next to Later. Pin the ones you want on top.
+- **Map.** Every Google Maps or OpenStreetMap link in your notes becomes a pin: blue while planned, green once you tick the line. Countries you've been to are shaded; click a country to add it. Works offline with country outlines; streets and satellite when online.
+- **Link cards.** A line that is only a link shows the page's title, image and description. Fetched once, kept for offline.
 - **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
 - **Tables and code.** Markdown tables show as a clean grid; Tab moves between cells and the columns line up by themselves. Fenced code blocks are highlighted for over 140 languages, with a copy button.
 - **LaTeX math.** `$\alpha^2$` inside a sentence, `$$...$$` for an equation of its own, typeset with KaTeX. Click a formula to edit its source. Math pasted from ChatGPT (`\(...\)`, `\[...\]`) works too.
@@ -97,7 +101,17 @@ orthros --connect https://your-server:8444 YOUR-TOKEN
 ```
 
 On macOS, run `/Applications/Orthros.app/Contents/MacOS/orthros --connect …`; with Flatpak, `flatpak run io.github.freaxmate.orthros --connect …`.
+Update the server and every device together: an older version does not know notes and stops syncing when it meets one.
 The dot at the top right of the window shows the state: green when synced, amber when the server can't be reached. Changes made meanwhile are kept and sent later.
+
+## Android
+
+Install `Orthros_*_arm64.apk` from the release (with [Obtainium](https://obtainium.imranr.dev) it stays up to date). Your notes live inside the app on the phone; connect it to your sync server to share them with your computers:
+
+1. On the computer, click the sync dot at the top right, then **Connect a phone**.
+2. On the phone, tap the sync dot, then **Scan to connect**, and point it at the QR code.
+
+The phone needs to reach the server over HTTPS, e.g. with the Tailscale app.
 
 ## Nix and NixOS
 
@@ -134,8 +148,8 @@ services.orthros-server.enable = true;   # 127.0.0.1:8787, token in /var/lib/ort
 | `Backspace` on a new empty task | makes it a plain line |
 | ```` ``` ```` or `\|` on a new empty item | starts a code block or table under the item above |
 | `Alt-Up` / `Alt-Down` | move an item (with its sub-items); past the first or last item, into the next day |
-| drag the ⋮⋮ grip (shows on hover) | move an item to another place, another day, or onto the Later tab |
-| `Ctrl-1` … `Ctrl-4` | Today, Later, Days, Search |
+| drag the ⋮⋮ grip (shows on hover) | move an item to another place, another day, or onto the Notes tab (it lands in Later) |
+| `Ctrl-1` … `Ctrl-5` | Today, Notes, Map, Days, Search |
 | `Ctrl-K` | search |
 
 On macOS, `Cmd` instead of `Ctrl`.
@@ -149,7 +163,18 @@ npm run tauri dev
 cargo test --workspace
 ```
 
+The Android APK is built by [android.yml](.github/workflows/android.yml) (Actions tab, **Run workflow**, or any release tag). To sign it with your own key, create one once and store it as repository secrets `ANDROID_KEYSTORE` (base64 of the file), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`:
+
+```sh
+nix shell nixpkgs#jdk -c keytool -genkeypair -keystore orthros.jks -alias orthros -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 orthros.jks   # the value for ANDROID_KEYSTORE; keep orthros.jks somewhere safe
+```
+
 Built with [Tauri](https://tauri.app), Rust and [CodeMirror](https://codemirror.net).
+
+## Map data
+
+Country borders: [Natural Earth](https://www.naturalearthdata.com) (public domain), shipped with the app. Streets: [OpenFreeMap](https://openfreemap.org), © OpenMapTiles, data from [OpenStreetMap](https://www.openstreetmap.org/copyright). Satellite: Esri World Imagery (online only). Place names in short links are looked up with [Nominatim](https://nominatim.org). Map tiles and places you've looked at are cached in `.cache/` in your data folder, which is never synced.
 
 ## License
 

@@ -1,0 +1,84 @@
+/* The map view: a quiet status line and mode switch above the map. */
+
+.map-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  font: 13px/1.4 var(--mono);
+  color: var(--muted);
+}
+
+.map-note { color: var(--faint); margin-left: 12px; }
+
+.map-modes { display: flex; gap: 18px; }
+
+.map-modes button {
+  font: 13px/1 var(--mono);
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-bottom: 1.5px solid transparent;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.map-modes button:hover { color: var(--text); }
+.map-modes button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.map-modes button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 4px; }
+
+.map-canvas {
+  height: calc(100vh - 200px);
+  min-height: 320px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Popups follow the theme (MapLibre's default is white). */
+.map-canvas .maplibregl-popup-content {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  padding: 10px 14px;
+  font: 13px/1.45 var(--mono);
+  max-width: 300px;
+}
+.map-canvas .maplibregl-popup-close-button { color: var(--muted); }
+.map-canvas .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.map-canvas .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.map-canvas .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--bg); }
+.map-canvas .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.map-canvas .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.map-canvas .maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--bg); }
+.map-canvas .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--bg); }
+.map-canvas .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--bg); }
+
+.map-canvas .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--muted); font-family: var(--mono); }
+.map-canvas .maplibregl-ctrl-attrib a { color: var(--muted); }
+
+.map-pop-title { font-weight: 600; word-break: break-word; }
+.map-pop-sub { color: var(--muted); }
+.map-pop-item + .map-pop-item { margin-top: 10px; }
+
+.map-pop button {
+  margin-top: 6px;
+  font: 13px/1 var(--mono);
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.map-pop button:hover { border-color: var(--accent); color: var(--accent); }
+.map-pop button:disabled { opacity: 0.5; cursor: default; }
+
+/* The place card inside the popup (places/placeCard.ts, styles in style.css):
+   the popup's own padding frames it, the photo sits on top. */
+.map-pop .place-card { max-width: 272px; font-family: var(--mono); font-size: 13px; }
+.map-pop .place-card + .map-pop-sub { margin-top: 8px; }

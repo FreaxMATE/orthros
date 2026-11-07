@@ -10,6 +10,8 @@
   --caret: #b4441a;
   --ok: #3f8a5a;
   --warn: #b7791f;
+  --open: #3f8a5a;
+  --closed: #b0463a;
   --code-bg: #f3f1ed;
   --hl-keyword: #94386f;
   --hl-string: #4d7a26;
@@ -37,6 +39,8 @@
   --caret: #ffb48c;
   --ok: #6fbf8a;
   --warn: #e0a84e;
+  --open: #6fbf8a;
+  --closed: #e07a6c;
   --code-bg: #24221f;
   --hl-keyword: #dc93c4;
   --hl-string: #a8cc7c;
@@ -59,6 +63,8 @@
     --caret: #ffb48c;
   --ok: #6fbf8a;
   --warn: #e0a84e;
+  --open: #6fbf8a;
+  --closed: #e07a6c;
     --code-bg: #24221f;
     --hl-keyword: #dc93c4;
     --hl-string: #a8cc7c;
@@ -68,5 +74,36 @@
     --hl-name: #8cb8e3;
     --hl-meta: #a39e95;
     color-scheme: dark;
+  }
+}
+
+/* Map colours (src/map/map.ts reads them at runtime). Same three blocks as
+   above: light, explicit dark, system dark. */
+:root {
+  --map-water: #dbe6ec;
+  --map-land: #f3f0ea;
+  --map-border: #c8c2b6;
+  --map-visited-land: #c5dfcc;
+  --map-planned: #2d5f8f;
+  --map-visited: #3f8a5a;
+}
+
+:root[data-theme="dark"] {
+  --map-water: #141a1e;
+  --map-land: #2a2825;
+  --map-border: #4a463f;
+  --map-visited-land: #2e4a38;
+  --map-planned: #8cb8e3;
+  --map-visited: #6fbf8a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --map-water: #141a1e;
+    --map-land: #2a2825;
+    --map-border: #4a463f;
+    --map-visited-land: #2e4a38;
+    --map-planned: #8cb8e3;
+    --map-visited: #6fbf8a;
   }
 }
