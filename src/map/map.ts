@@ -21,7 +21,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // MapLibre 6 looks for its worker next to its own script, and only when that
 // was loaded over http(s): neither holds under Vite or tauri://. Without the
 // worker, GeoJSON and vector tiles never render (only raster images do).
-import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+// The webview won't start a module worker from a tauri:// file either, so the
+// worker ships as text and starts from a blob: URL (allowed by the CSP).
+import workerCode from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 import "./map.css";
 import { api, type Place, type PlaceDetails } from "../api";
 import { placeCard } from "../places/placeCard";
@@ -71,7 +73,7 @@ let protocolAdded = false;
 function addCachedProtocol() {
   if (protocolAdded) return;
   protocolAdded = true;
-  setWorkerUrl(workerUrl);
+  setWorkerUrl(URL.createObjectURL(new Blob([workerCode], { type: "text/javascript" })));
   addProtocol("cached", async (p) => {
     const buf = await gunzip(await api.fetchCached(unvia(p.url)));
     if (p.type === "json" || p.type === "string") {
