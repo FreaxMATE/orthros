@@ -109,7 +109,7 @@ The dot at the top right of the window shows the state: green when synced, amber
 Install `Orthros_*_arm64.apk` from the release (with [Obtainium](https://obtainium.imranr.dev) it stays up to date). Your notes live inside the app on the phone; connect it to your sync server to share them with your computers:
 
 1. On the computer, click the sync dot at the top right, then **Connect a phone**.
-2. On the phone, tap **Connect** at the top right, then **Scan to connect**, and point it at the QR code.
+2. On the phone, tap **Connect** at the right of the tab bar, then **Scan to connect**, and point it at the QR code.
 
 The phone needs to reach the server over HTTPS, e.g. with the Tailscale app.
 

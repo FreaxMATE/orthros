@@ -614,12 +614,28 @@ html.compact .desktop-only { display: none; }
 /* Top bar: just the dot and the theme switch, compact. */
 html.compact .top { padding: 14px 16px 10px; min-height: 44px; }
 html.compact .top-right { top: 6px; right: 16px; gap: 6px; }
-/* Android draws the app under its status bar; not every webview reports how
-   tall that is, hence the minimum. */
-html.is-mobile { --status-bar: max(env(safe-area-inset-top, 0px), 32px); }
-html.is-mobile .top { padding-top: calc(var(--status-bar) + 14px); min-height: calc(var(--status-bar) + 44px); }
-html.is-mobile .top-right { top: var(--status-bar); }
-html.is-mobile #view-map { height: calc(100dvh - var(--bar-h) - 170px - var(--status-bar)); }
+/* Android draws the app under its status bar, and how tall that is varies
+   and isn't always reported. So nothing to tap lives up there on the phone:
+   the top only keeps content clear, and sync sits at the end of the tab bar. */
+html.is-mobile { --status-bar: max(env(safe-area-inset-top, 0px), 32px); --sync-w: 52px; }
+html.is-mobile:has(.sync[data-state="off"]) { --sync-w: 92px; }
+html.is-mobile .top { padding: var(--status-bar) 0 0; min-height: var(--status-bar); }
+html.is-mobile .tabs { padding-right: var(--sync-w); }
+html.is-mobile .top-right {
+  position: fixed;
+  top: auto;
+  right: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 5;
+  width: var(--sync-w);
+  height: var(--tabbar);
+  justify-content: center;
+}
+html.is-mobile.keyboard-open .top-right { display: none; }
+html.is-mobile .sync:not([data-state="off"]) #sync-text { display: none; }
+html.is-mobile .sync-panel { top: auto; bottom: calc(100% + 8px); right: 0; }
+html.is-mobile .sync-panel .theme-switch { margin-top: 10px; padding: 0; }
+html.is-mobile #view-map { height: calc(100dvh - var(--bar-h) - 126px - var(--status-bar)); }
 html.compact .theme-switch,
 html.compact .sync { min-height: 44px; padding: 0 8px; display: flex; align-items: center; }
 

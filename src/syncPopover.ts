@@ -54,6 +54,8 @@ export function mountSyncPopover({ button, syncNow }: Options) {
   const extra = document.createElement("div");
   extra.className = "sync-extra";
   panel.append(status, now, extra);
+  // The phone has no top bar to keep the theme switch in.
+  if (isMobile) panel.append(document.querySelector("#theme-switch")!);
 
   function action(label: string, onclick: () => void) {
     const b = document.createElement("button");
