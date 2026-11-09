@@ -2,8 +2,7 @@
 {
   lib,
   rustPlatform,
-  fetchNpmDeps,
-  npmHooks,
+  importNpmLock,
   nodejs,
   cargo-tauri,
   pkg-config,
@@ -21,16 +20,17 @@ rustPlatform.buildRustPackage (finalAttrs: {
   inherit version src;
 
   cargoLock.lockFile = ../Cargo.lock;
-  npmDeps = fetchNpmDeps {
-    name = "orthros-${version}-npm-deps";
-    inherit src;
-    hash = "sha256-m1ZLb8rLL1z3396mCE3m2WTuNWW1is6TC7X0DfuFZA0=";
+  # Like cargoLock: every package's checksum comes from the lock file, so
+  # there is no hash here to update when dependencies or the version change.
+  npmDeps = importNpmLock {
+    package = lib.importJSON ../package.json;
+    packageLock = lib.importJSON ../package-lock.json;
   };
 
   nativeBuildInputs = [
     cargo-tauri.hook
     nodejs
-    npmHooks.npmConfigHook
+    importNpmLock.npmConfigHook
     pkg-config
     wrapGAppsHook3
   ];

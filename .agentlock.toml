@@ -1,0 +1,61 @@
+# agentlock: the sandbox rules for Claude in this project.
+#
+# Claude can read this file but not change it. Edit it yourself, or use
+# `agentlock allow ...` in a terminal in this folder (`agentlock help`).
+# Changes apply the next time Claude starts (VS Code: open a new Claude tab).
+#
+# Everything commented out below shows the default. Settings in
+# ~/.config/agentlock/config.toml apply to every project; lists here are
+# added to the ones there, everything else here wins.
+
+[network]
+# "open"      the whole internet (web search, docs, package downloads)
+# "allowlist" only Claude itself plus the domains below
+# "off"       only Claude itself
+# mode = "open"
+
+# Websites allowed when mode = "allowlist". "github.com" also allows
+# "api.github.com" and every other subdomain.
+# domains = ["github.com", "pypi.org", "files.pythonhosted.org"]
+
+# Services on your own computer Claude may use, e.g. a database at
+# localhost:5432 or a dev server at localhost:3000. Everything else on
+# localhost is blocked.
+# host_ports = [5432]
+
+[tools]
+# Extra programs from nixpkgs (names as on https://search.nixos.org/packages).
+# git, gh, curl, jq, ripgrep, node, python3, uv, make and more are always there.
+# packages = ["cargo", "rustc", "go", "postgresql"]
+
+[files]
+# Claude always gets this project folder (read and write). Everything else
+# on your computer is invisible unless listed here.
+# read_only = ["~/src/some-library"]
+# read_write = ["~/notes/project-x"]
+
+# Files in the project Claude cannot see (they look empty to it).
+# hide = [".env", ".env.*"]
+# Exceptions to `hide`:
+# show = [".env.example", ".env.sample", ".env.template", ".env.dist"]
+
+[secrets]
+# Values from the files below are given to Claude (and the programs it runs)
+# as environment variables, even though the files themselves are hidden.
+# "all" = every key, or name the keys: ["DATABASE_URL", "OPENAI_API_KEY"],
+# or [] for none. Note: Claude can read every value it is given.
+# inject = "all"
+# env_files = [".env"]
+
+# true = give Claude your GitHub login (`gh auth token`) so `gh` and HTTPS
+# git work as you. Pushing still also needs git.allow_push.
+# github_token = false
+
+[git]
+# allow_commit = true
+# allow_push = false
+
+# Commit messages matching any of these (case-insensitive regular
+# expressions) are rejected. Setting this replaces the default list:
+# Claude/AI attribution lines, the robot emoji and the em dash (U+2014).
+# reject_in_commit_message = ["co-authored-by:.*claude"]
