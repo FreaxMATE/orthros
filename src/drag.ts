@@ -58,9 +58,11 @@ function anchor(editor: DocEditor, from: number, text: string) {
   const el = node instanceof HTMLElement ? node : node.parentElement;
   const lineEl = el?.closest<HTMLElement>(".cm-line");
   const marker = lineEl?.querySelector(".cm-marker");
-  if (marker) {
+  const mark = marker?.firstElementChild;
+  if (marker && mark) {
     const r = marker.getBoundingClientRect();
-    if (r.width) return { x: r.left, y: r.top + r.height / 2 };
+    const m = mark.getBoundingClientRect();
+    if (r.width) return { x: r.left, y: m.top + m.height / 2 };
   }
   // A code block: next to the box, at its header.
   if (lineEl?.classList.contains("cm-cb")) {

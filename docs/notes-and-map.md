@@ -43,11 +43,13 @@ markdown in the same folder, synced by the same server.
 - **Pins** come from links in any note that point to a place: Google Maps
   links (short `maps.app.goo.gl` links are resolved once while online, then
   cached) and plain coordinates.
-- **Planned or visited is the checkbox:** `- [ ] [Kyoto](link)` is planned
-  (blue pin), `- [x] [Kyoto](link)` is visited (green pin). A place link
-  without a checkbox counts as planned. Clicking a pin opens its note at that
+- **Want to go or been there is the checkbox:** `- [ ] [Kyoto](link)` is a
+  green flag, `- [x] [Kyoto](link)` a red heart, as in Google Maps. A place
+  link without a checkbox counts as want to go. The place card has a heart
+  and a flag button that set the checkbox. Clicking a pin opens its note at that
   line.
-- **Visited countries are shaded,** from ticked places (country found offline
+- **Visited countries are shaded** while zoomed out far enough to see at
+  least a continent (they fade out between zoom 3 and 4), from ticked places (country found offline
   from bundled Natural Earth borders) and from clicking a country on the map,
   which writes `- [x] Portugal` into a normal "Been there" note.
 - **Layers** (MapLibre): two modes, Streets and Satellite. Satellite is a

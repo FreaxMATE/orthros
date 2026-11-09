@@ -45,6 +45,10 @@ jobs:
           npm ci
           npx tauri android init --ci
           npx tauri icon src-tauri/icons/icon.png
+          # The wrapper gives up on its Gradle download after 10 s by default.
+          wrapper=src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/^networkTimeout=/d' "$wrapper"
+          printf '\nnetworkTimeout=120000\n' >> "$wrapper"
 
       - name: Build
         run: npx tauri android build --apk --target aarch64 --ci

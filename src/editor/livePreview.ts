@@ -54,6 +54,8 @@ class MarkerWidget extends WidgetType {
     return o.kind === this.kind && o.done === this.done && o.checkPos === this.checkPos;
   }
   toDOM() {
+    const root = document.createElement("span");
+    root.className = "cm-marker-root";
     const wrap = document.createElement("span");
     wrap.className = "cm-marker";
     const box = document.createElement("span");
@@ -66,7 +68,17 @@ class MarkerWidget extends WidgetType {
       box.className = "cm-bullet";
     }
     wrap.appendChild(box);
-    return wrap;
+    // An invisible character where the text starts: see coordsAt.
+    root.append(wrap, "\u200b");
+    return root;
+  }
+  /** On an empty item the caret stands right after this widget, and would be
+   *  drawn from the marker's box. Use a text box, so it sits where text will. */
+  coordsAt(dom: HTMLElement) {
+    if (!dom.lastChild) return null;
+    const range = document.createRange();
+    range.selectNodeContents(dom.lastChild);
+    return range.getClientRects()[0] ?? null;
   }
   ignoreEvent() {
     return false;

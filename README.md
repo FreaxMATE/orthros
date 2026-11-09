@@ -54,7 +54,7 @@ xattr -dr com.apple.quarantine /Applications/Orthros.app
 - **One column of days.** Tomorrow, today and the days before, so you can plan the evening before.
 - **Later.** A separate list for ideas and someday tasks, out of today's way.
 - **Notes.** Trip ideas, life goals, books to read: a short list of notes next to Later. Pin the ones you want on top.
-- **Map.** Every Google Maps or OpenStreetMap link in your notes becomes a pin: blue while planned, green once you tick the line. Countries you've been to are shaded; click a country to add it. Works offline with country outlines; streets and satellite when online.
+- **Map.** Every Google Maps or OpenStreetMap link in your notes becomes a pin: a green flag where you want to go, a red heart where you've been (set it on the place card, or tick the line). Countries you've been to are shaded; click a country to add it. Works offline with country outlines; streets and satellite when online.
 - **Link cards.** A line that is only a link shows the page's title, image and description. Fetched once, kept for offline.
 - **Markdown that stays out of the way.** Checkboxes, nesting, headings, bold, code and links; the syntax only shows on the line you're editing.
 - **Tables and code.** Markdown tables show as a clean grid; Tab moves between cells and the columns line up by themselves. Fenced code blocks are highlighted for over 140 languages, with a copy button.
@@ -109,7 +109,7 @@ The dot at the top right of the window shows the state: green when synced, amber
 Install `Orthros_*_arm64.apk` from the release (with [Obtainium](https://obtainium.imranr.dev) it stays up to date). Your notes live inside the app on the phone; connect it to your sync server to share them with your computers:
 
 1. On the computer, click the sync dot at the top right, then **Connect a phone**.
-2. On the phone, tap the sync dot, then **Scan to connect**, and point it at the QR code.
+2. On the phone, tap **Connect** at the top right, then **Scan to connect**, and point it at the QR code.
 
 The phone needs to reach the server over HTTPS, e.g. with the Tailscale app.
 

@@ -287,16 +287,28 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
   text-indent: calc(-1 * var(--marker));
 }
 
+.cm-marker-root { white-space: nowrap; }
+
+/* A zero-height box standing on the baseline. The checkbox or bullet hangs
+   from it, centred on the lowercase letters (1ex is their height in this very
+   font), so it needs no nudging per font or size. */
 .cm-marker {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  position: relative;
   width: var(--marker);
-  height: 1em;
+  height: 0;
   text-indent: 0;
-  vertical-align: -0.1em;
+  vertical-align: baseline;
+}
+
+.cm-check, .cm-bullet {
+  position: absolute;
+  bottom: 0.5ex;
+  transform: translateY(50%);
 }
 
 .cm-check {
+  left: 0;
   width: 15px;
   height: 15px;
   border: 1.25px solid var(--text);
@@ -307,14 +319,24 @@ h2.day-title { font-size: 24px; margin-bottom: 12px; }
 .cm-check:hover { border-color: var(--accent); }
 
 .cm-bullet {
+  left: 5px;
   width: 5px;
   height: 5px;
-  margin-left: 5px;
-  position: relative;
-  top: -0.3em;
   border-radius: 50%;
   background: var(--muted);
 }
+
+/* An item that is one tall thing (a card, a displayed formula): the marker
+   sits at its middle, the content lines up where the item's text would. */
+.cm-editor .cm-line:is(.cm-ln-task, .cm-ln-bullet):has(.cm-place, .cm-card, .cm-math-display) {
+  display: flex;
+  align-items: center;
+  padding-left: calc(var(--lvl, 0) * var(--indent));
+  text-indent: 0;
+}
+.cm-line:has(.cm-place, .cm-card, .cm-math-display) > .cm-marker-root { display: flex; flex: none; align-items: center; }
+.cm-line:has(.cm-place, .cm-card, .cm-math-display) > :not(.cm-marker-root, img) { flex: 1; min-width: 0; }
+.cm-line:has(.cm-place, .cm-card, .cm-math-display) :is(.cm-check, .cm-bullet) { bottom: 0; }
 
 .cm-done { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--accent); }
 
@@ -490,6 +512,9 @@ body.is-dragging .drag-grip { color: var(--accent); transition: none; }
    the editor it sits in .cm-place (the widget's group); wide cards put the
    photo left, narrow ones and the map popup (.is-compact) put it on top. */
 .cm-place { display: block; margin: 2px 0; text-indent: 0; }
+/* On a ticked line too: having been somewhere doesn't cross it out. */
+/* (inline-block: only that stops the line's strike-through reaching it.) */
+.cm-line.is-done .cm-place { display: inline-block; width: 100%; vertical-align: top; color: var(--text); opacity: 1; }
 .cm-card.is-plain a { color: inherit; text-decoration: inherit; }
 
 .place-card {
@@ -515,6 +540,25 @@ body.is-dragging .drag-grip { color: var(--accent); transition: none; }
 .place-link, .place-desc a { color: var(--accent); text-decoration: none; cursor: pointer; }
 .place-link:hover, .place-desc a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .place-link:focus-visible, .place-hours-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+.place-save { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0; }
+.place-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: 13px/1.4 var(--mono);
+  cursor: pointer;
+}
+.place-save-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.place-save-btn:hover { color: var(--text); border-color: var(--muted); }
+.place-save-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.place-save-btn.is-been[aria-pressed="true"] { color: #fff; background: var(--map-visited); border-color: var(--map-visited); }
+.place-save-btn.is-want[aria-pressed="true"] { color: #fff; background: var(--map-planned); border-color: var(--map-planned); }
 
 .place-hours-raw { color: var(--muted); }
 .place-hours-toggle {
@@ -570,6 +614,12 @@ html.compact .desktop-only { display: none; }
 /* Top bar: just the dot and the theme switch, compact. */
 html.compact .top { padding: 14px 16px 10px; min-height: 44px; }
 html.compact .top-right { top: 6px; right: 16px; gap: 6px; }
+/* Android draws the app under its status bar; not every webview reports how
+   tall that is, hence the minimum. */
+html.is-mobile { --status-bar: max(env(safe-area-inset-top, 0px), 32px); }
+html.is-mobile .top { padding-top: calc(var(--status-bar) + 14px); min-height: calc(var(--status-bar) + 44px); }
+html.is-mobile .top-right { top: var(--status-bar); }
+html.is-mobile #view-map { height: calc(100dvh - var(--bar-h) - 170px - var(--status-bar)); }
 html.compact .theme-switch,
 html.compact .sync { min-height: 44px; padding: 0 8px; display: flex; align-items: center; }
 

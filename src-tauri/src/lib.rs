@@ -230,8 +230,51 @@ fn main_window(app: &AppHandle) -> tauri::Result<()> {
     let b = b
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true);
-    b.build()?;
+    let window = b.build()?;
+    #[cfg(target_os = "linux")]
+    forward_pinch(&window)?;
+    #[cfg(not(target_os = "linux"))]
+    let _ = window;
     Ok(())
+}
+
+/// A touchpad pinch, as emitted to the page.
+#[cfg(target_os = "linux")]
+#[derive(Serialize, Clone)]
+struct Pinch {
+    begin: bool,
+    scale: f64,
+    x: f64,
+    y: f64,
+}
+
+/// WebKitGTK zooms the whole page on a touchpad pinch, in native code that
+/// JavaScript can't stop and never hears about. Take the pinch first and hand
+/// it to the page, where the map uses it.
+#[cfg(target_os = "linux")]
+fn forward_pinch(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    use gtk::gdk::EventTouchpadPinch;
+    use gtk::prelude::WidgetExt;
+    use tauri::Emitter;
+
+    let target = window.clone();
+    window.with_webview(move |webview| {
+        webview.inner().connect_event(move |_, event| {
+            let Some(pinch) = event.downcast_ref::<EventTouchpadPinch>() else {
+                return glib::Propagation::Proceed;
+            };
+            let (x, y) = pinch.position();
+            let begin = !pinch.is_phase(); // false only for GDK's "begin" (0)
+            let scale = pinch.scale();
+            // On Wayland the last event of a pinch resets the scale to 1 and
+            // has no movement: obeying it would undo the zoom on release.
+            let ended = !begin && scale == 1.0 && pinch.delta() == (0.0, 0.0) && pinch.angle_delta() == 0.0;
+            if !ended {
+                let _ = target.emit("touchpad-pinch", Pinch { begin, scale, x, y });
+            }
+            glib::Propagation::Stop
+        });
+    })
 }
 
 #[cfg(desktop)]

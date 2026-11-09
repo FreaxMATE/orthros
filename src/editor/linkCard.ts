@@ -11,6 +11,7 @@
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { api, openUrl, type LinkPreview, type Place, type PlaceDetails } from "../api";
+import { withVisited } from "../map/places";
 import { placeCard } from "../places/placeCard";
 import { fences } from "./code";
 import { lineInfo } from "./livePreview";
@@ -97,14 +98,15 @@ function span(cls: string, text: string) {
 }
 
 class CardWidget extends WidgetType {
-  constructor(readonly url: string) {
+  /** `visited`: the line is ticked (a place you have been to). */
+  constructor(readonly url: string, readonly visited: boolean) {
     super();
   }
   eq(o: CardWidget) {
-    return o.url === this.url;
+    return o.url === this.url && o.visited === this.visited;
   }
-  toDOM() {
-    if (MAP_URL.test(this.url)) return this.placeDOM();
+  toDOM(view: EditorView) {
+    if (MAP_URL.test(this.url)) return this.placeDOM(view);
     const { host, plain } = parts(this.url);
     const a = document.createElement("a");
     a.className = "cm-card is-plain";
@@ -154,7 +156,7 @@ class CardWidget extends WidgetType {
   }
   /** A map link: the place card. The card holds several links, so the
    *  widget is a group, not an <a>; until data arrives it is the plain link. */
-  placeDOM() {
+  placeDOM(view: EditorView) {
     const { plain } = parts(this.url);
     const box = document.createElement("div");
     box.className = "cm-card is-plain";
@@ -171,7 +173,11 @@ class CardWidget extends WidgetType {
     void placeFor(this.url).then((d) => {
       if (!d) return;
       box.className = "cm-place";
-      box.replaceChildren(placeCard({ url: this.url, place: d.place, details: d.details }));
+      const set = (visited: boolean) => {
+        const line = view.state.doc.lineAt(view.posAtDOM(box));
+        view.dispatch({ changes: { from: line.from, to: line.to, insert: withVisited(line.text, visited) } });
+      };
+      box.replaceChildren(placeCard({ url: this.url, place: d.place, details: d.details, saved: { visited: this.visited, set } }));
     });
     return box;
   }
@@ -199,10 +205,12 @@ function build(view: EditorView): DecorationSet {
       pos = line.to + 1;
       if (active.has(line.number) || code.some((f) => line.number >= f.first && line.number <= f.last)) continue;
       const info = lineInfo(line.text);
-      if (info.kind !== "bullet" && info.kind !== "text") continue;
+      if (info.kind !== "bullet" && info.kind !== "text" && info.kind !== "task") continue;
       const url = line.text.slice(info.contentStart).trim();
       if (!BARE_URL.test(url)) continue;
-      out.add(line.from + info.contentStart, line.to, Decoration.replace({ widget: new CardWidget(url) }));
+      // On a task line only places get a card: the checkbox means something there.
+      if (info.kind === "task" && !MAP_URL.test(url)) continue;
+      out.add(line.from + info.contentStart, line.to, Decoration.replace({ widget: new CardWidget(url, info.done) }));
     }
   }
   return out.finish();

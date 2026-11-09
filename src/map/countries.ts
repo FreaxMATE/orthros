@@ -1,7 +1,10 @@
-// Country borders from the bundled Natural Earth file (public/countries.geojson):
+// Country borders from the bundled Natural Earth file (countries.geojson):
 // which country contains a point, and which country a typed line names.
 // Loaded once; everything works offline.
 
+// Part of the map code, not fetched: the installed app must draw it no matter
+// what the webview allows, and offline.
+import countriesJson from "./countries.geojson?raw";
 import { stripMarkup } from "./places";
 
 export interface Country {
@@ -30,9 +33,7 @@ let shapes: Shape[] = [];
 
 export function loadCountries(): Promise<Collection> {
   loading ??= (async () => {
-    const res = await fetch("/countries.geojson");
-    if (!res.ok) throw new Error(`countries.geojson: ${res.status}`);
-    const fc = (await res.json()) as Collection;
+    const fc = JSON.parse(countriesJson) as Collection;
     shapes = fc.features.map((f: any) => {
       const g = f.geometry;
       const polys: Ring[][] = g.type === "Polygon" ? [g.coordinates] : g.coordinates;

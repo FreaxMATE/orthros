@@ -36,6 +36,28 @@ export function isVisited(line: string): boolean {
   return TICKED.test(line);
 }
 
+const LIST_START = /^(\s*)([-*+]|\d+[.)]) (?:\[[ xX]?\] )?/;
+
+/** The line with its checkbox set: ticked = been there, unticked = want to
+ *  go. A plain bullet or plain text becomes a task. */
+export function withVisited(line: string, visited: boolean): string {
+  const box = visited ? "[x] " : "[ ] ";
+  const m = LIST_START.exec(line);
+  if (m) return `${m[1]}${m[2]} ${box}${line.slice(m[0].length)}`;
+  const indent = /^\s*/.exec(line)![0];
+  return `${indent}- ${box}${line.slice(indent.length)}`;
+}
+
+/** The document with the checkbox of the place's line set, or null if the
+ *  link is gone. Looks for the link elsewhere if the line has moved. */
+export function setVisited(text: string, line: number, url: string, visited: boolean): string | null {
+  const lines = text.split("\n");
+  const at = lines[line]?.includes(url) ? line : lines.findIndex((l) => l.includes(url));
+  if (at < 0) return null;
+  lines[at] = withVisited(lines[at], visited);
+  return lines.join("\n");
+}
+
 /** A line as plain text: no list or task marker, links reduced to their
  *  text, trimmed. */
 export function stripMarkup(line: string): string {

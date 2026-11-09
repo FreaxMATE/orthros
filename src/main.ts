@@ -395,7 +395,7 @@ function renderSync(s: SyncStatus) {
   el.dataset.state = s.state;
   const waiting = s.pending ? ` · ${s.pending} waiting` : "";
   const text: Record<SyncStatus["state"], string> = {
-    off: "",
+    off: isMobile ? "Connect" : "",
     syncing: "",
     synced: "",
     offline: `offline${waiting}`,
@@ -435,7 +435,11 @@ async function showMap() {
     );
   }
   try {
-    (await map).resize();
+    const m = await map;
+    m.resize();
+    // Notes may have changed while the map was out of sight.
+    await flushAll();
+    await m.refresh();
   } catch (e) {
     // Say why instead of an empty page (no WebGL, a broken style...); the
     // next visit tries again.
@@ -477,6 +481,14 @@ function flushAll() {
 
 function wire() {
   wireThemeSwitch($<HTMLButtonElement>("#theme-switch"));
+
+  // The interface never zooms: pinch and Ctrl+scroll are for the map, which
+  // handles them first on its own element.
+  window.addEventListener("wheel", (e) => e.ctrlKey && e.preventDefault(), { passive: false });
+  window.addEventListener("touchmove", (e) => e.touches.length > 1 && e.preventDefault(), { passive: false });
+  for (const g of ["gesturestart", "gesturechange", "gestureend"]) {
+    window.addEventListener(g, (e) => e.preventDefault(), { passive: false });
+  }
   enableDrag({
     editors: () => {
       if (current() === "today") return stream;

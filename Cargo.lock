@@ -2699,6 +2699,7 @@ dependencies = [
  "axum",
  "dirs 6.0.0",
  "glib",
+ "gtk",
  "notify",
  "orthros-core",
  "orthros-server",

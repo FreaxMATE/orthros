@@ -82,3 +82,24 @@
    the popup's own padding frames it, the photo sits on top. */
 .map-pop .place-card { max-width: 272px; font-family: var(--mono); font-size: 13px; }
 .map-pop .place-card + .map-pop-sub { margin-top: 8px; }
+
+/* Pins: a white heart or flag on a round badge. */
+.map-pin {
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.map-pin svg { width: 15px; height: 15px; fill: currentColor; }
+.map-pin.is-been { background: var(--map-visited); }
+.map-pin.is-want { background: var(--map-planned); }
+
+/* Pins are redrawn after a save: an open popup must stay above them. */
+.map-canvas .maplibregl-popup { z-index: 1; }

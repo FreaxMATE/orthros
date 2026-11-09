@@ -185,8 +185,12 @@ export const api = {
       ? call<PlaceDetails | null>("place_details", { lat, lng, name, lang: navigator.language.slice(0, 2) || "en" })
       : Promise.resolve(demo ? demoPlace : null),
   /** A map tile, style or font, through the app's disk cache. */
-  fetchCached: async (url: string): Promise<ArrayBuffer> =>
-    inTauri ? call<ArrayBuffer>("fetch_cached", { url }) : (await fetch(url)).arrayBuffer(),
+  fetchCached: async (url: string): Promise<ArrayBuffer> => {
+    if (!inTauri) return (await fetch(url)).arrayBuffer();
+    // If Tauri ever falls back to its message channel, bytes arrive as a list.
+    const r = await call<ArrayBuffer | number[]>("fetch_cached", { url });
+    return Array.isArray(r) ? new Uint8Array(r).buffer : r;
+  },
 
   syncNow: () => (inTauri ? call<void>("sync_now") : Promise.resolve()),
   syncStatus: () =>
@@ -200,6 +204,8 @@ export const api = {
   /** Save a sync config and sync once; rejects with a message on failure. */
   connectSync: (server: string, token: string) => (inTauri ? call<void>("connect_sync", { server, token }) : Promise.resolve()),
   onSyncStatus: (f: (s: SyncStatus) => void) => on<SyncStatus>("sync-status", f),
+  /** A touchpad pinch (Linux, where the page itself never sees one). */
+  onPinch: (f: (p: { begin: boolean; scale: number; x: number; y: number }) => void) => on("touchpad-pinch", f),
   onDocChanged: (f: (d: { name: string; content: string }) => void) => on("doc-changed", f),
 
   capture: (text: string, target: "later" | "today", date: string) =>

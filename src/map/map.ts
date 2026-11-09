@@ -10,8 +10,10 @@
 
 import {
   addProtocol,
+  type LngLat,
   LngLatBounds,
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   Popup,
   setWorkerUrl,
@@ -28,7 +30,8 @@ import "./map.css";
 import { api, type Place, type PlaceDetails } from "../api";
 import { placeCard } from "../places/placeCard";
 import { countryAt, findCountry, loadCountries, type Collection, type Country } from "./countries";
-import { beenThere, extractLinks, type Doc } from "./places";
+import { FLAG, HEART, icon } from "../places/icons";
+import { beenThere, extractLinks, setVisited, type Doc } from "./places";
 
 // The bundled outline is not a mode: it is what shows while the street map
 // can't be had (offline, never cached), and under everything else.
@@ -44,6 +47,8 @@ const SAT_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imag
 const STREETS_ATTR = "OpenFreeMap © OpenMapTiles Data from OpenStreetMap";
 const SAT_ATTR = "Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
 const MODE_KEY = "orthros:map-mode";
+/** Half a pin: how close a click must be to count as on it. */
+const PIN_REACH = 13;
 
 interface Pin {
   lng: number;
@@ -108,9 +113,9 @@ function colours(): Colours {
     water: v("--map-water", "#dbe6ec"),
     land: v("--map-land", "#f3f0ea"),
     border: v("--map-border", "#c8c2b6"),
-    visitedLand: v("--map-visited-land", "#c5dfcc"),
-    planned: v("--map-planned", "#2d5f8f"),
-    visited: v("--map-visited", "#3f8a5a"),
+    visitedLand: v("--map-visited-land", "#ef8a80"),
+    planned: v("--map-planned", "#188038"),
+    visited: v("--map-visited", "#d93025"),
     bg: v("--bg", "#fdfdfc"),
   };
 }
@@ -141,11 +146,15 @@ function streetsStyle(): Promise<StyleSpecification> {
   return streets;
 }
 
+// Visited countries are a view of the world: they show while at least a whole
+// continent fits (Europe needs about zoom 3 in a normal window), then fade out.
+const SHADE_FULL = 3;
+const SHADE_GONE = 4;
+const fadeOut = (opacity: number): any => ["interpolate", ["linear"], ["zoom"], SHADE_FULL, opacity, SHADE_GONE, 0];
+
 function visitedFilter(names: string[]): any {
   return ["in", ["get", "name"], ["literal", names]];
 }
-
-const pinColour = (c: Colours): any => ["case", ["get", "visited"], c.visited, c.planned];
 
 // ------------------------------------------------------------------- popups
 
@@ -209,15 +218,6 @@ export async function mountMap(
   /** The been-there note's lines, as of the last compute(). */
   let lastBeen: ReturnType<typeof beenThere> = [];
 
-  const pinCollection = () => ({
-    type: "FeatureCollection" as const,
-    features: pins.map((p) => ({
-      type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
-      properties: { doc: p.doc, title: p.title, line: p.line, label: p.label, url: p.url, visited: p.visited },
-    })),
-  });
-
   async function readDocs(): Promise<Doc[]> {
     const notes = await api.notes();
     const names = [{ name: "later", title: "Later" }, ...notes.map((n) => ({ name: n.name, title: n.title }))];
@@ -274,7 +274,6 @@ export async function mountMap(
     const c = colours();
     const sources: Sources = {
       countries: { type: "geojson", data: fc as any, attribution: "Natural Earth" },
-      places: { type: "geojson", data: pinCollection() as any },
     };
     const base: Layer[] = [
       { id: "base-bg", type: "background", paint: { "background-color": c.water } },
@@ -305,28 +304,29 @@ export async function mountMap(
     } else {
       note.textContent = "Offline: showing country outlines.";
     }
-    const overlay: Layer[] = [
+    const shading: Layer[] = [
       {
         id: "visited-fill",
         type: "fill",
         source: "countries",
         filter: visitedFilter(visitedNames),
-        paint: { "fill-color": c.visitedLand, "fill-opacity": outline ? 1 : 0.5 },
+        maxzoom: SHADE_GONE,
+        paint: { "fill-color": c.visitedLand, "fill-opacity": fadeOut(outline ? 0.85 : 0.55) },
       },
       {
-        id: "pins",
-        type: "circle",
-        source: "places",
-        paint: {
-          "circle-radius": 7,
-          "circle-color": pinColour(c),
-          "circle-stroke-color": c.bg,
-          "circle-stroke-width": 2,
-        },
+        id: "visited-line",
+        type: "line",
+        source: "countries",
+        filter: visitedFilter(visitedNames),
+        maxzoom: SHADE_GONE,
+        paint: { "line-color": c.visited, "line-width": 1.5, "line-opacity": fadeOut(1) },
       },
     ];
-    // In outline mode the shading sits right on the land, under the borders.
-    const layers = outline && m === "streets" ? [base[0], base[1], overlay[0], base[2], overlay[1]] : [...base, ...middle, ...overlay];
+    // Shading goes under the first road or label, so names stay readable.
+    const cut = middle.findIndex((l) => l.type === "symbol" || (l as any)["source-layer"] === "transportation");
+    const below = cut < 0 ? middle : middle.slice(0, cut);
+    const above = cut < 0 ? [] : middle.slice(cut);
+    const layers = [...base, ...below, ...shading, ...above];
     return { version: 8, sources, layers, ...extra } as StyleSpecification;
   }
 
@@ -347,6 +347,33 @@ export async function mountMap(
     attributionControl: { compact: true },
   });
   map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+  // A touchpad pinch over the map zooms the map, around the fingers.
+  let pinch: { zoom: number; around: LngLat } | null = null;
+  void api.onPinch(({ begin, scale, x, y }) => {
+    const box = canvas.getBoundingClientRect();
+    if (begin) {
+      const over = box.width > 0 && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+      pinch = over ? { zoom: map.getZoom(), around: map.unproject([x - box.left, y - box.top]) } : null;
+      if (pinch) map.stop();
+    } else if (pinch && scale > 0) {
+      map.easeTo({ zoom: pinch.zoom + Math.log2(scale), around: pinch.around, duration: 0 });
+    }
+  });
+  // Pins are page elements, not a map layer: every pin shows at every zoom
+  // (no tiles, no label placement), and they survive a change of style.
+  let markers: Marker[] = [];
+  function drawPins() {
+    markers.forEach((m) => m.remove());
+    // Hearts last, so they lie on top of a flag at the same spot.
+    markers = [...pins]
+      .sort((a, b) => Number(a.visited) - Number(b.visited))
+      .map((p) => {
+        const element = el("div", `map-pin ${p.visited ? "is-been" : "is-want"}`);
+        element.append(icon(p.visited ? HEART : FLAG));
+        return new Marker({ element }).setLngLat([p.lng, p.lat]).addTo(map);
+      });
+  }
+  drawPins();
 
   let switching = 0;
   async function setMode(m: Mode) {
@@ -365,9 +392,11 @@ export async function mountMap(
 
   /** Push fresh data into the live sources; a style swap picks it up itself. */
   function pushData() {
+    drawPins();
     try {
-      (map.getSource("places") as any)?.setData(pinCollection());
-      if (map.getLayer("visited-fill")) map.setFilter("visited-fill", visitedFilter(visitedNames));
+      for (const layer of ["visited-fill", "visited-line"]) {
+        if (map.getLayer(layer)) map.setFilter(layer, visitedFilter(visitedNames));
+      }
     } catch {
       // style mid-swap: buildStyle reads the current state anyway
     }
@@ -381,8 +410,7 @@ export async function mountMap(
       set("base-land", "fill-color", c.land);
       set("base-border", "line-color", c.border);
       set("visited-fill", "fill-color", c.visitedLand);
-      set("pins", "circle-color", pinColour(c));
-      set("pins", "circle-stroke-color", c.bg);
+      set("visited-line", "line-color", c.visited);
     } catch {
       // style mid-swap: it was built with the new colours or will be repainted
     }
@@ -397,29 +425,26 @@ export async function mountMap(
     popup = new Popup({ closeButton: true, maxWidth: "300px" }).setLngLat(lngLat).setDOMContent(content).addTo(map);
   };
 
-  map.on("mouseenter", "pins", () => (map.getCanvas().style.cursor = "pointer"));
-  map.on("mouseleave", "pins", () => (map.getCanvas().style.cursor = ""));
-
   map.on("click", (e) => {
     const { x, y } = e.point;
-    const hits = map.getLayer("pins")
-      ? map.queryRenderedFeatures([[x - 7, y - 7], [x + 7, y + 7]], { layers: ["pins"] })
-      : [];
+    const hits = pins.filter((p) => {
+      const at = map.project([p.lng, p.lat]);
+      return Math.abs(at.x - x) <= PIN_REACH && Math.abs(at.y - y) <= PIN_REACH;
+    });
     if (hits.length) return pinPopup(hits);
     const c = countryAt(e.lngLat.lng, e.lngLat.lat);
     if (c) countryPopup(c, [e.lngLat.lng, e.lngLat.lat]);
   });
 
-  function pinPopup(hits: ReturnType<MapLibreMap["queryRenderedFeatures"]>) {
+  function pinPopup(hits: Pin[]) {
     const box = el("div", "map-pop");
     const seen = new Set<string>();
     let at: [number, number] = [0, 0];
-    for (const f of hits) {
-      const p = f.properties as { doc: string; title: string; line: number; label: string; url: string };
+    for (const p of hits) {
       const key = `${p.doc}:${p.line}:${p.label}`;
       if (seen.has(key) || seen.size >= 5) continue;
       seen.add(key);
-      const pos = (f.geometry as { coordinates: [number, number] }).coordinates;
+      const pos: [number, number] = [p.lng, p.lat];
       if (seen.size === 1) at = pos;
       const item = el("div", "map-pop-item");
       const open = el("button", undefined, "Open note");
@@ -431,15 +456,35 @@ export async function mountMap(
       // The card shows at once from what the pin knows; the details replace
       // it when they arrive (the popup may be gone by then: harmless).
       const place: Place = { lng: pos[0], lat: pos[1], name: p.label };
-      const draw = (details: PlaceDetails | null) => placeCard({ url: p.url, place, details, compact: true });
-      let card = draw(null);
+      let visited = p.visited;
+      let details: PlaceDetails | null = null;
+      const draw = () =>
+        placeCard({
+          url: p.url,
+          place,
+          details,
+          compact: true,
+          saved: {
+            visited,
+            set: (v) => {
+              visited = v;
+              redraw();
+              void saveVisited(p.doc, Number(p.line), p.url, v);
+            },
+          },
+        });
+      let card = draw();
+      const redraw = () => {
+        const next = draw();
+        card.replaceWith(next);
+        card = next;
+      };
       void api
         .placeDetails(place.lat, place.lng, place.name)
         .then((d) => {
           if (!d) return;
-          const next = draw(d);
-          card.replaceWith(next);
-          card = next;
+          details = d;
+          redraw();
         })
         .catch(() => {});
       item.append(card, el("div", "map-pop-sub", p.title), open);
@@ -468,6 +513,14 @@ export async function mountMap(
       box.append(b);
     }
     show(at, box);
+  }
+
+  /** Heart or flag from a pin's card: sets the checkbox on the place's line. */
+  async function saveVisited(doc: string, line: number, url: string, visited: boolean) {
+    const prev = await api.read(doc);
+    const next = setVisited(prev, line, url, visited);
+    if (next !== null && next !== prev) await api.save(doc, next, prev);
+    await refresh();
   }
 
   // --- editing the been-there note

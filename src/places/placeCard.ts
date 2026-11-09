@@ -9,6 +9,7 @@
 // click inside the card.
 
 import { openUrl, type Place, type PlaceDetails } from "../api";
+import { FLAG, HEART, icon } from "./icons";
 
 export interface PlaceCardOptions {
   /** The map link the place came from. */
@@ -17,6 +18,8 @@ export interface PlaceCardOptions {
   details: PlaceDetails | null;
   /** The map popup: narrow, photo always on top. */
   compact?: boolean;
+  /** Been there or want to go, and how to change it. */
+  saved?: { visited: boolean; set(visited: boolean): void };
 }
 
 export function coords(lat: number, lng: number) {
@@ -129,6 +132,28 @@ function hoursBlock(value: string, place: Place) {
   return box;
 }
 
+// ----------------------------------------------------------------- saving
+
+/** Heart or flag, like saving a place in Google Maps: always one of the two. */
+function saveButtons(s: NonNullable<PlaceCardOptions["saved"]>) {
+  const box = el("div", "place-save");
+  const add = (visited: boolean, path: string, text: string, cls: string) => {
+    const b = el("button", `place-save-btn ${cls}`);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(s.visited === visited));
+    b.append(icon(path), text);
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (s.visited !== visited) s.set(visited);
+    });
+    box.append(b);
+  };
+  add(true, HEART, "Been here", "is-been");
+  add(false, FLAG, "Want to go", "is-want");
+  return box;
+}
+
 // --------------------------------------------------------------------- card
 
 export function placeCard(o: PlaceCardOptions): HTMLElement {
@@ -156,6 +181,7 @@ export function placeCard(o: PlaceCardOptions): HTMLElement {
   head.append(el("div", "place-name", name));
   if (d?.kind) head.append(el("div", "place-kind", d.kind));
   body.append(head);
+  if (o.saved) body.append(saveButtons(o.saved));
 
   if (!d) body.append(el("div", "place-coords", coords(place.lat, place.lng)));
   if (d?.opening_hours) body.append(hoursBlock(d.opening_hours, place));
